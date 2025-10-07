@@ -59,13 +59,20 @@ const AppHeader = ({
                 <h2 className="text-2xl font-grotesk font-semibold text-white pb-0.5 translate-y-[2px]">"{searchTerm}"</h2>
               </div>
               
-              {/* Added Cubular logo */}
-              <Button variant="ghost" className="h-8 p-1 rounded-md text-blue-500 hover:bg-gray-800 transition-colors" onClick={navigateToHome}>
-                <div className="flex items-center gap-1.5">
-                  
-                  <span className="text-xs font-medium text-gray-100">CUBULAR</span>
-                </div>
-              </Button>
+              {/* Right side with notification bell and Cubular logo */}
+              <div className="flex items-center gap-2">
+                {/* User Notifications Bell - Show for all logged-in users */}
+                {user && (
+                  <UserNotificationsBell />
+                )}
+                
+                {/* Cubular logo */}
+                <Button variant="ghost" className="h-8 p-1 rounded-md text-blue-500 hover:bg-gray-800 transition-colors" onClick={navigateToHome}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-gray-100">CUBULAR</span>
+                  </div>
+                </Button>
+              </div>
             </div>
           </div>
           
@@ -88,11 +95,6 @@ const AppHeader = ({
                     <MessageCircle className="h-4 w-4" />
                     New Chat
                   </Button>
-                )}
-                
-                {/* User Notifications Bell - Show for all logged-in users for debugging */}
-                {user && (
-                  <UserNotificationsBell />
                 )}
                 
                 {/* Export Button - only show on responses tab */}

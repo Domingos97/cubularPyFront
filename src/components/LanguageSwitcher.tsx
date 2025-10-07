@@ -12,6 +12,14 @@ import { Button } from '@/components/ui/button';
 const LanguageSwitcher: React.FC = () => {
   const { currentLanguage, setLanguage, t } = useTranslation();
 
+  // Debug logging
+  console.log('🌐 LanguageSwitcher Debug:', {
+    currentLanguage,
+    typeOfCurrentLanguage: typeof currentLanguage,
+    translation_t_function: typeof t,
+    localStorage: localStorage.getItem('preferred-language')
+  });
+
   const languages: Array<{ code: SupportedLanguage; name: string; flag: string }> = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
     { code: 'es', name: 'Español', flag: '🇪🇸' },
@@ -19,6 +27,7 @@ const LanguageSwitcher: React.FC = () => {
   ];
 
   const currentLanguageInfo = languages.find(lang => lang.code === currentLanguage);
+  console.log('🌐 LanguageSwitcher currentLanguageInfo:', currentLanguageInfo);
 
   return (
     <DropdownMenu>

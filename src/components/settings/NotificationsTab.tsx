@@ -17,7 +17,7 @@ export const NotificationsTab = () => {
         </CardHeader>
         <CardContent>
           <p className="text-gray-300 text-sm mb-4">
-            {t('settings.notifications.content')}
+            Aqui você pode visualizar todas as suas notificações enviadas aos administradores e acompanhar as respostas em formato hierárquico. Cada notificação pode ter múltiplas respostas organizadas em threads.
           </p>
         </CardContent>
       </Card>

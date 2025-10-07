@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Send, Clock, CheckCircle, XCircle, AlertTriangle, MessageSquare, Plus, FileText, Settings, HelpCircle } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Bell, Send, Clock, CheckCircle, XCircle, AlertTriangle, MessageSquare, Plus, FileText, Settings, HelpCircle, ChevronDown, ChevronRight, Reply, User, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { NotificationType, NotificationStatus, CreateNotificationRequest, UserNotification } from '@/types/notifications';
+import { NotificationType, NotificationStatus, CreateNotificationRequest, UserNotification, AdminResponse } from '@/types/notifications';
 import { authenticatedFetch } from '@/utils/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
@@ -290,6 +291,107 @@ interface NotificationHistoryProps {
   className?: string;
 }
 
+// Component to render admin responses hierarchically
+interface AdminResponseItemProps {
+  response: AdminResponse;
+  children?: AdminResponse[];
+  depth?: number;
+}
+
+const AdminResponseItem = ({ response, children = [], depth = 0 }: AdminResponseItemProps) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  
+  const getResponseTypeIcon = (type: string) => {
+    switch (type) {
+      case 'reply': return <Reply className="w-4 h-4 text-blue-400" />;
+      case 'status_update': return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+      case 'resolution': return <CheckCircle className="w-4 h-4 text-green-400" />;
+      default: return <MessageSquare className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getResponseTypeColor = (type: string) => {
+    switch (type) {
+      case 'reply': return 'bg-blue-900/20 border-blue-600/30';
+      case 'status_update': return 'bg-yellow-900/20 border-yellow-600/30';
+      case 'resolution': return 'bg-green-900/20 border-green-600/30';
+      default: return 'bg-gray-900/20 border-gray-600/30';
+    }
+  };
+
+  return (
+    <div className={`${depth > 0 ? 'ml-6 border-l-2 border-gray-700 pl-4' : ''}`}>
+      <div className={`rounded-lg p-3 mt-3 ${getResponseTypeColor(response.response_type)}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-2">
+            <Shield className="w-4 h-4 text-gray-400" />
+            <span className="text-gray-300 font-medium text-sm">
+              {response.admin_name || 'Admin'}
+            </span>
+            {getResponseTypeIcon(response.response_type)}
+            <span className="text-xs text-gray-400 capitalize">
+              {response.response_type.replace('_', ' ')}
+            </span>
+          </div>
+          {children.length > 0 && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+          )}
+        </div>
+        
+        <p className="text-gray-100 text-sm mb-2">{response.response_message}</p>
+        
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>{new Date(response.created_at).toLocaleDateString()} at {new Date(response.created_at).toLocaleTimeString()}</span>
+        </div>
+      </div>
+      
+      {/* Render child responses */}
+      {children.length > 0 && isExpanded && (
+        <div className="space-y-2">
+          {children.map((childResponse) => (
+            <AdminResponseItem
+              key={childResponse.id}
+              response={childResponse}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Helper function to organize responses into a tree structure
+const organizeResponsesHierarchy = (responses: AdminResponse[]): { topLevel: AdminResponse[], children: Map<string, AdminResponse[]> } => {
+  const children = new Map<string, AdminResponse[]>();
+  const topLevel: AdminResponse[] = [];
+
+  // First pass: identify top-level responses and build children map
+  responses.forEach(response => {
+    if (response.parent_response_id) {
+      if (!children.has(response.parent_response_id)) {
+        children.set(response.parent_response_id, []);
+      }
+      children.get(response.parent_response_id)!.push(response);
+    } else {
+      topLevel.push(response);
+    }
+  });
+
+  // Sort responses by creation date
+  topLevel.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  children.forEach(childList => {
+    childList.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  });
+
+  return { topLevel, children };
+};
+
 export const NotificationHistory = ({ className = '' }: NotificationHistoryProps) => {
   const { t } = useTranslation();
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
@@ -309,6 +411,11 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
       
       const result = await response.json();
       setNotifications(result.data || []);
+      
+      // Para testar a funcionalidade hierárquica, descomente a linha abaixo e comente a linha acima:
+      // import { mockNotifications } from '@/data/mockNotifications';
+      // setNotifications(mockNotifications);
+      
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
@@ -372,47 +479,82 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
             <p className="text-sm">{t('notifications.sendFirstRequest')}</p>
           </div>
         ) : (
-          notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 space-y-3"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h4 className="text-white font-medium">{notification.title}</h4>
-                    <Badge className={`text-xs ${getStatusColor(notification.status)}`}>
-                      <div className="flex items-center space-x-1">
-                        {getStatusIcon(notification.status)}
-                        <span className="capitalize">{notification.status.replace('_', ' ')}</span>
-                      </div>
-                    </Badge>
-                  </div>
-                  <p className="text-gray-300 text-sm mb-2">{notification.message}</p>
-                  
-                  {notification.admin_response && (
-                    <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 mt-3">
+          notifications.map((notification) => {
+            const hasResponses = notification.admin_responses && notification.admin_responses.length > 0;
+            const hasLegacyResponse = notification.admin_response && !hasResponses;
+            const { topLevel, children } = hasResponses 
+              ? organizeResponsesHierarchy(notification.admin_responses!)
+              : { topLevel: [], children: new Map() };
+
+            return (
+              <Collapsible key={notification.id} defaultOpen>
+                <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <MessageSquare className="w-4 h-4 text-blue-400" />
-                        <span className="text-blue-300 font-medium text-sm">Admin Response</span>
+                        <User className="w-4 h-4 text-gray-400" />
+                        <h4 className="text-white font-medium">{notification.title}</h4>
+                        <Badge className={`text-xs ${getStatusColor(notification.status)}`}>
+                          <div className="flex items-center space-x-1">
+                            {getStatusIcon(notification.status)}
+                            <span className="capitalize">{notification.status.replace('_', ' ')}</span>
+                          </div>
+                        </Badge>
+                        {(hasResponses || hasLegacyResponse) && (
+                          <CollapsibleTrigger asChild>
+                            <button className="text-gray-400 hover:text-white transition-colors ml-2">
+                              <MessageSquare className="w-4 h-4" />
+                              <span className="ml-1 text-xs">
+                                {hasResponses ? `${notification.admin_responses!.length} responses` : '1 response'}
+                              </span>
+                            </button>
+                          </CollapsibleTrigger>
+                        )}
                       </div>
-                      <p className="text-blue-100 text-sm">{notification.admin_response}</p>
-                      {notification.responded_at && (
-                        <p className="text-blue-400 text-xs mt-1">
-                          Responded on {new Date(notification.responded_at).toLocaleDateString()}
-                        </p>
-                      )}
+                      <p className="text-gray-300 text-sm mb-2">{notification.message}</p>
+                      
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span className="capitalize">{notification.type.replace('_', ' ')}</span>
+                        <span>{new Date(notification.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  
+                  {/* Collapsible responses section */}
+                  <CollapsibleContent className="space-y-2">
+                    {/* Legacy response support */}
+                    {hasLegacyResponse && (
+                      <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 mt-3">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <Shield className="w-4 h-4 text-blue-400" />
+                          <span className="text-blue-300 font-medium text-sm">Admin Response</span>
+                        </div>
+                        <p className="text-blue-100 text-sm">{notification.admin_response}</p>
+                        {notification.responded_at && (
+                          <p className="text-blue-400 text-xs mt-1">
+                            Responded on {new Date(notification.responded_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* New hierarchical responses */}
+                    {hasResponses && (
+                      <div className="space-y-2">
+                        {topLevel.map((response) => (
+                          <AdminResponseItem
+                            key={response.id}
+                            response={response}
+                            children={children.get(response.id) || []}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleContent>
                 </div>
-              </div>
-              
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="capitalize">{notification.type.replace('_', ' ')}</span>
-                <span>{new Date(notification.created_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-          ))
+              </Collapsible>
+            );
+          })
         )}
       </CardContent>
     </Card>

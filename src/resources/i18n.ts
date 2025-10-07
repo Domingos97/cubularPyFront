@@ -1,6 +1,6 @@
 // Enhanced translation utility with React context support
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 // Static imports for language files
@@ -86,38 +86,109 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   children, 
   defaultLanguage = 'en' 
 }) => {
-  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>(defaultLanguage);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load initial language and saved preference
-  useEffect(() => {
-    const initializeLanguage = () => {
-      // Check for saved language preference
+  // Initialize with saved language or default, preventing race condition
+  const getInitialLanguage = (): SupportedLanguage => {
+    try {
       const savedLang = localStorage.getItem('preferred-language') as SupportedLanguage;
-      const langToLoad = savedLang || defaultLanguage;
+      console.log('🔍 getInitialLanguage - Raw localStorage value:', savedLang);
+      console.log('🔍 getInitialLanguage - Type of savedLang:', typeof savedLang);
+      console.log('🔍 getInitialLanguage - Is supported language?', ['en', 'es', 'pt'].includes(savedLang));
+      
+      if (savedLang && ['en', 'es', 'pt'].includes(savedLang)) {
+        console.log(`🌐 ✅ Initializing with saved language: ${savedLang}`);
+        return savedLang;
+      } else {
+        console.log(`🌐 ❌ Saved language "${savedLang}" not valid, using default: ${defaultLanguage}`);
+      }
+    } catch (error) {
+      console.error('🌐 ❌ Failed to read language preference from localStorage:', error);
+    }
+    console.log(`🌐 🔄 Initializing with default language: ${defaultLanguage}`);
+    return defaultLanguage;
+  };
+
+  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>(getInitialLanguage);
+  const [isLoading, setIsLoading] = useState(false); // Changed to false for immediate availability
+
+  // Initialize language files only once on mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initializeLanguage = () => {
+      if (!isMounted) return;
+      
+      console.log('🌐 🚀 Starting language initialization...');
+      console.log('🌐 Current state:', { currentLanguage, defaultLanguage });
       
       // Initialize all language files (they're pre-loaded via static imports)
       loadLanguage('en');
       loadLanguage('es');
       loadLanguage('pt');
       
-      setCurrentLanguage(langToLoad);
-      setIsLoading(false);
+      // Verify current language is still correct after mount
+      try {
+        const savedLang = localStorage.getItem('preferred-language') as SupportedLanguage;
+        console.log('🔍 Re-checking localStorage after mount:', { 
+          savedLang, 
+          currentLanguage, 
+          isValid: savedLang && ['en', 'es', 'pt'].includes(savedLang),
+          needsUpdate: savedLang !== currentLanguage 
+        });
+        
+        if (savedLang && ['en', 'es', 'pt'].includes(savedLang) && savedLang !== currentLanguage) {
+          console.log(`🌐 🔄 Correcting language from ${currentLanguage} to ${savedLang}`);
+          setCurrentLanguage(savedLang);
+        } else {
+          console.log(`🌐 ✅ Language ${currentLanguage} is correct, no change needed`);
+        }
+      } catch (error) {
+        console.error('🌐 ❌ Failed to verify language preference:', error);
+      }
+      
+      if (isMounted) {
+        setIsLoading(false);
+        console.log('🌐 ✅ Language initialization complete');
+      }
     };
 
     initializeLanguage();
-  }, [defaultLanguage]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Only run once on mount, no dependencies to avoid loops
 
   // Save language preference when changed
   const setLanguage = (lang: SupportedLanguage) => {
-    setCurrentLanguage(lang);
-    localStorage.setItem('preferred-language', lang);
+    try {
+      console.log(`🌐 Language changing from ${currentLanguage} to ${lang}`);
+      setCurrentLanguage(lang);
+      localStorage.setItem('preferred-language', lang);
+      console.log(`✅ Language saved to localStorage: ${lang}`);
+    } catch (error) {
+      console.error('❌ Failed to save language preference:', error);
+      // Still update the current language even if storage fails
+      setCurrentLanguage(lang);
+    }
   };
 
+  // Debug localStorage state on mount
+  useEffect(() => {
+    console.log('🔍 LanguageProvider Debug Info:', {
+      currentLanguage,
+      defaultLanguage,
+      storedLanguage: localStorage.getItem('preferred-language'),
+      isLoading
+    });
+  }, [currentLanguage, defaultLanguage, isLoading]);
+
   // Translation function bound to current language
-  const t = (key: string, vars?: TranslationVariables, count?: number): string => {
-    return translate(key, currentLanguage, vars, count);
-  };
+  const t = useCallback((key: string, vars?: TranslationVariables, count?: number): string => {
+    console.log(`🔍 Translation called: key="${key}", currentLanguage="${currentLanguage}"`);
+    const result = translate(key, currentLanguage, vars, count);
+    console.log(`🔍 Translation result: "${result}"`);
+    return result;
+  }, [currentLanguage]);
 
   const value: LanguageContextType = {
     currentLanguage,
@@ -126,7 +197,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
     isLoading
   };
 
-  // Show loading spinner while initializing
+  // Only show loading spinner if truly needed (shouldn't happen with pre-loaded translations)
   if (isLoading) {
     return React.createElement('div', {
       className: 'min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center'
