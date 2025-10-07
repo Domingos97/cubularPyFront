@@ -1,0 +1,30 @@
+# CubularFront Setup Guide
+
+This guide assumes you already have Visual Studio Code installed.
+
+## 1. Clone the Repository
+
+Open a terminal and run:
+
+```
+git clone https://github.com/Domingos97/CubularFront.git
+cd CubularFront
+```
+
+## 2. Install Dependencies
+
+Run the following command to install Node.js modules:
+
+```
+npm install
+```
+
+## 3. Start the Project
+
+To run the project locally:
+
+```
+npm run dev
+```
+
+The development server will start. Open the provided URL in your browser to view the app.
