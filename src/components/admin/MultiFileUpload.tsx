@@ -1,0 +1,863 @@
+import React, { useState, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText, X, Plus, Upload, AlertCircle, CheckCircle, FileSpreadsheet, Sparkles } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { authenticatedFetch } from '@/utils/api';
+import { SurveyFile, Survey, CreateSurveyRequest, AddFileToSurveyResponse } from '@/types/survey';
+import type { AIPersonality } from '@/hooks/usePersonalities';
+import { useProcessingStatus } from '@/hooks/useProcessingStatus';
+import { useTranslation } from '@/resources/i18n';
+import * as XLSX from 'xlsx';
+
+interface MultiFileUploadProps {
+  surveyId?: string; // If provided, files will be added to existing survey
+  onSurveyCreated?: (survey: Survey) => void;
+  onFilesUploaded?: (files: SurveyFile[]) => void;
+  onUploadComplete?: () => void;
+  maxFiles?: number;
+  allowedExtensions?: string[];
+}
+
+interface FileWithPreview {
+  file: File;
+  id: string;
+  preview?: {
+    headers: string[];
+    sampleRows: string[][];
+    totalRows: number;
+  };
+}
+
+export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
+  surveyId,
+  onSurveyCreated,
+  onFilesUploaded,
+  onUploadComplete,
+  maxFiles = 10,
+  allowedExtensions = ['.csv', '.xlsx', '.xls']
+}) => {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  
+  // Survey creation fields
+  const [surveyTitle, setSurveyTitle] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [numberParticipants, setNumberParticipants] = useState<number | undefined>();
+  
+  // AI Suggestions functionality
+  const [personalities, setPersonalities] = useState<AIPersonality[]>([]);
+  const [selectedPersonality, setSelectedPersonality] = useState<string>('');
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
+  
+  // File handling
+  const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [currentSurveyId, setCurrentSurveyId] = useState(surveyId);
+  const [createdSurveyId, setCreatedSurveyId] = useState<string | null>(null);
+  const [processingComplete, setProcessingComplete] = useState(false);
+  
+  // Reset form function
+  const resetForm = useCallback(() => {
+    setSelectedFiles([]);
+    setSurveyTitle('');
+    setCategory('');
+    setDescription('');
+    setNumberParticipants(undefined);
+    setAiSuggestions([]);
+    setSelectedPersonality(personalities.find(p => p.is_default)?.id || '');
+    setCreatedSurveyId(null);
+    setProcessingComplete(false);
+    setProgress(0);
+    setError('');
+  }, [personalities]);
+
+  // Processing status tracking
+  const {
+    status: processingStatus,
+    isComplete: isProcessingComplete,
+    isProcessing,
+    isFailed: isProcessingFailed
+  } = useProcessingStatus({
+    surveyId: createdSurveyId,
+    enabled: !!createdSurveyId && uploading,
+    onComplete: () => {
+      setProcessingComplete(true);
+      setUploading(false);
+      
+      toast({
+        title: "Survey Created Successfully",
+        description: "All files have been processed and semantic analysis is complete.",
+      });
+      
+      // Reset form after successful completion
+      resetForm();
+      
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+    },
+    onError: (error) => {
+      console.error('Processing status error:', error);
+      setUploading(false);
+      toast({
+        title: "Processing Failed", 
+        description: "Survey was created but semantic processing failed.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Fetch AI personalities on component mount
+  React.useEffect(() => {
+    const fetchPersonalities = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('http://localhost:3000/api/personalities', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch personalities');
+        }
+        const data = await response.json();
+        setPersonalities(data);
+        const defaultPersonality = data.find((p: AIPersonality) => p.is_default);
+        if (defaultPersonality) {
+          setSelectedPersonality(defaultPersonality.id);
+        }
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: "Error",
+          description: "Could not load AI personalities.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchPersonalities();
+  }, [toast]);
+
+  // Validate file type and size
+  const validateFile = useCallback((file: File): { valid: boolean; error?: string } => {
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    
+    if (file.size > maxSize) {
+      return { valid: false, error: 'File size exceeds 50MB limit' };
+    }
+    
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      return { 
+        valid: false, 
+        error: `Invalid file type. Allowed: ${allowedExtensions.join(', ')}` 
+      };
+    }
+    
+    return { valid: true };
+  }, [allowedExtensions]);
+
+  // Generate preview for supported file types
+  const generateFilePreview = useCallback(async (file: File): Promise<FileWithPreview['preview']> => {
+    return new Promise((resolve) => {
+      const fileName = file.name.toLowerCase();
+      
+      if (fileName.endsWith('.csv')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const content = e.target?.result as string;
+            const lines = content.split('\n').filter(line => line.trim());
+            const headers = lines[0]?.split(',').map(h => h.replace(/[\"']/g, '').trim()) || [];
+            const sampleRows = lines.slice(1, 6).map(line => 
+              line.split(',').map(cell => cell.replace(/[\"']/g, '').trim())
+            );
+            
+            resolve({
+              headers,
+              sampleRows,
+              totalRows: lines.length - 1
+            });
+          } catch (error) {
+            resolve({
+              headers: ['Preview Error'],
+              sampleRows: [['Could not generate preview']],
+              totalRows: 0
+            });
+          }
+        };
+        reader.readAsText(file);
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Handle Excel files with XLSX library
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            
+            if (!firstSheetName) {
+              resolve({
+                headers: ['No sheets found'],
+                sampleRows: [['Empty workbook']],
+                totalRows: 0
+              });
+              return;
+            }
+            
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+            
+            const headers = jsonData[0]?.map(h => String(h || '').trim()) || [];
+            const dataRows = jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''));
+            const sampleRows = dataRows.slice(0, 5).map(row => 
+              row.map(cell => String(cell || '').trim())
+            );
+            
+            resolve({
+              headers: headers.length > 0 ? headers : ['Column 1'],
+              sampleRows,
+              totalRows: dataRows.length
+            });
+          } catch (error) {
+            console.error('Excel parsing error:', error);
+            resolve({
+              headers: ['Excel Parse Error'],
+              sampleRows: [['Could not read Excel file']],
+              totalRows: 0
+            });
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        // Unsupported file type
+        resolve({
+          headers: ['Unsupported file type'],
+          sampleRows: [['Preview not available']],
+          totalRows: 0
+        });
+      }
+    });
+  }, []);
+
+  // Handle file selection
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    if (selectedFiles.length + files.length > maxFiles) {
+      setError(`Maximum ${maxFiles} files allowed`);
+      return;
+    }
+    
+    const newFiles: FileWithPreview[] = [];
+    
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        setError(`${file.name}: ${validation.error}`);
+        continue;
+      }
+      
+      // Check for duplicates
+      if (selectedFiles.some(f => f.file.name === file.name && f.file.size === file.size)) {
+        setError(`File already selected: ${file.name}`);
+        continue;
+      }
+      
+      const fileWithPreview: FileWithPreview = {
+        file: file,
+        id: `${Date.now()}-${Math.random()}`,
+      };
+      
+      // Generate preview
+      try {
+        fileWithPreview.preview = await generateFilePreview(file);
+      } catch (error) {
+        console.warn(`Failed to generate preview for ${file.name}:`, error);
+      }
+      
+      newFiles.push(fileWithPreview);
+    }
+    
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    setError('');
+    
+    // Clear the input value to allow selecting the same file again if removed
+    e.target.value = '';
+  }, [selectedFiles, maxFiles, validateFile, generateFilePreview]);
+
+  // Remove file from selection
+  const removeFile = useCallback((fileId: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.id !== fileId));
+  }, []);
+
+  // Generate AI suggestions based on description, category, and file content
+  const generateAISuggestions = useCallback(async () => {
+    if (!description.trim() || !category || selectedFiles.length === 0 || !selectedPersonality) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in category, description, select at least one file, and choose a personality before generating questions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingSuggestions(true);
+    setError('');
+
+    try {
+      // Use the first file for content sample
+      const firstFile = selectedFiles[0];
+      let sampleContent = { headers: [], sampleRows: [] };
+      
+      // Try to get file content from preview if available
+      if (firstFile.preview) {
+        sampleContent = {
+          headers: firstFile.preview.headers,
+          sampleRows: firstFile.preview.sampleRows
+        };
+      }
+
+      // Generate suggestions directly without saving survey
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`http://localhost:3000/api/surveys/generate-suggestions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          description: description.trim(),
+          category,
+          fileContent: sampleContent,
+          personalityId: selectedPersonality,
+        })
+      });
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to generate suggestions';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If response is not JSON (like HTML error page), use status text
+          errorMessage = `Server error (${response.status}): ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      setAiSuggestions(data.suggestions || []);
+      
+      toast({
+        title: "Analysis Questions Generated",
+        description: "AI has generated specific analysis questions for your survey data.",
+      });
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate analysis questions. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingSuggestions(false);
+    }
+  }, [description, category, selectedFiles, selectedPersonality, toast]);
+
+  // Create survey (if needed)
+  const createSurvey = useCallback(async (): Promise<string> => {
+    if (currentSurveyId) return currentSurveyId;
+    
+    if (!surveyTitle.trim()) {
+      throw new Error('Survey title is required');
+    }
+    
+    const surveyData: CreateSurveyRequest = {
+      title: surveyTitle.trim(),
+      category: category.trim() || undefined,
+      description: description.trim() || undefined,
+      number_participants: numberParticipants
+      // Note: ai_suggestions will be generated and saved separately after survey creation
+    };
+    
+    const response = await authenticatedFetch('http://localhost:3000/api/surveys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(surveyData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to create survey');
+    }
+    
+    const { survey } = await response.json();
+    setCurrentSurveyId(survey.id);
+    
+    if (onSurveyCreated) {
+      onSurveyCreated(survey);
+    }
+    
+    return survey.id;
+  }, [currentSurveyId, surveyTitle, category, description, numberParticipants, onSurveyCreated]);
+
+  // Upload files
+  const uploadFiles = useCallback(async () => {
+    if (selectedFiles.length === 0) {
+      setError('Please select at least one file');
+      return;
+    }
+    
+    setUploading(true);
+    setError('');
+    setProgress(0);
+    
+    try {
+      // Create survey if needed
+      const activeSurveyId = await createSurvey();
+      setCreatedSurveyId(activeSurveyId);
+      
+      // Generate and save AI suggestions if personality is selected and we have required data
+      if (selectedPersonality && description.trim() && category && selectedFiles.length > 0) {
+        try {
+          // Use the same approach as SurveyDetails - generate and save suggestions via the proper endpoint
+          // Get sample content from first file for the AI generation
+          const firstFile = selectedFiles[0];
+          let fileContent = { headers: [], sampleRows: [] };
+          
+          if (firstFile?.preview) {
+            fileContent = {
+              headers: firstFile.preview.headers,
+              sampleRows: firstFile.preview.sampleRows
+            };
+          }
+          
+          const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${activeSurveyId}/suggestions`, {
+            method: 'POST',
+            body: JSON.stringify({ 
+              personalityId: selectedPersonality,
+              fileContent: fileContent
+            })
+          });
+          
+          if (!response.ok) {
+            console.warn('Failed to generate and save AI suggestions to survey:', response.status);
+            // Don't throw here, continue with file upload even if suggestions save fails
+          } else {
+            const suggestionData = await response.json();
+            console.log('Successfully generated and saved AI suggestions to survey:', suggestionData.suggestions?.length || 0);
+          }
+        } catch (suggestionError) {
+          console.warn('Error generating and saving AI suggestions:', suggestionError);
+          // Don't throw here, continue with file upload even if suggestions save fails
+        }
+      }
+      
+      // Upload files one by one
+      const uploadedFiles: SurveyFile[] = [];
+      const totalFiles = selectedFiles.length;
+      
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        
+        const formData = new FormData();
+        formData.append('file', file.file);
+        
+        const response = await authenticatedFetch(
+          `http://localhost:3000/api/surveys/${activeSurveyId}/files`,
+          {
+            method: 'POST',
+            body: formData
+          }
+        );
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`Failed to upload ${file.file.name}: ${errorData.error || 'Unknown error'}`);
+        }
+        
+        const result: AddFileToSurveyResponse = await response.json();
+        uploadedFiles.push(result.file);
+        
+        // Update progress
+        setProgress(((i + 1) / totalFiles) * 100);
+      }
+      
+      // All files uploaded successfully - now processing starts in background
+      setProgress(100); // Mark upload as complete
+      
+      let successMessage = `Successfully uploaded ${uploadedFiles.length} files`;
+      if (selectedPersonality && description.trim() && category) {
+        successMessage += " and generated AI analysis questions";
+      }
+      successMessage += ". Starting semantic analysis...";
+
+      toast({
+        title: "Files Uploaded",
+        description: successMessage,
+      });
+
+      if (onFilesUploaded) {
+        onFilesUploaded(uploadedFiles);
+      }
+
+      // Processing status polling will be handled by useProcessingStatus hook
+      // Form will reset when processing completes via the onComplete callback
+      
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      setError(error instanceof Error ? error.message : 'Upload failed');
+      setUploading(false);
+      setCreatedSurveyId(null);
+      setProgress(0);
+      
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: "destructive",
+      });
+    }
+    // Don't reset uploading state in finally - it will be reset when processing completes
+  }, [selectedFiles, createSurvey, onFilesUploaded, onUploadComplete, toast, resetForm, personalities, selectedPersonality, description, category]);
+
+  return (
+    <div className="space-y-6">
+      {/* Survey Information (only if creating new survey) */}
+      {!currentSurveyId && (
+        <Card className="bg-gray-800/50 border-gray-600">
+          <CardHeader>
+            <CardTitle className="text-white">Survey Information</CardTitle>
+            <CardDescription className="text-gray-300">
+              Basic information about your survey
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="survey-title" className="text-white">Survey Title *</Label>
+              <Input
+                id="survey-title"
+                value={surveyTitle}
+                onChange={(e) => setSurveyTitle(e.target.value)}
+                placeholder="Enter survey title..."
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="category-select" className="text-white">Category</Label>
+              <Select value={category} onValueChange={setCategory} disabled={uploading}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue placeholder={t('common.selectCategory')} />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700 border-gray-600">
+                  <SelectItem value="sports">Sports</SelectItem>
+                  <SelectItem value="betting">Betting</SelectItem>
+                  <SelectItem value="cooking">Cooking</SelectItem>
+                  <SelectItem value="technology">Technology</SelectItem>
+                  <SelectItem value="health">Health & Fitness</SelectItem>
+                  <SelectItem value="travel">Travel</SelectItem>
+                  <SelectItem value="education">Education</SelectItem>
+                  <SelectItem value="entertainment">Entertainment</SelectItem>
+                  <SelectItem value="gaming">Gaming</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="fashion">Fashion</SelectItem>
+                  <SelectItem value="automotive">Automotive</SelectItem>
+                  <SelectItem value="real-estate">Real Estate</SelectItem>
+                  <SelectItem value="food-delivery">Food & Delivery</SelectItem>
+                  <SelectItem value="music">Music</SelectItem>
+                  <SelectItem value="movies">Movies & TV</SelectItem>
+                  <SelectItem value="books">Books & Literature</SelectItem>
+                  <SelectItem value="news">News & Media</SelectItem>
+                  <SelectItem value="politics">Politics</SelectItem>
+                  <SelectItem value="social-media">Social Media</SelectItem>
+                  <SelectItem value="e-commerce">E-commerce</SelectItem>
+                  <SelectItem value="healthcare">Healthcare</SelectItem>
+                  <SelectItem value="insurance">Insurance</SelectItem>
+                  <SelectItem value="cryptocurrency">Cryptocurrency</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                  <SelectItem value="marketing">Marketing</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                Choose the category that best describes your survey data
+              </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="description" className="text-white">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Survey description (optional)..."
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="participants" className="text-white">Expected Participants</Label>
+              <Input
+                id="participants"
+                type="number"
+                value={numberParticipants || ''}
+                onChange={(e) => setNumberParticipants(e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="Number of participants (optional)..."
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                min="0"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Suggestions Section */}
+      {!currentSurveyId && (
+        <Card className="bg-gray-800/50 border-gray-600">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              AI Analysis Questions
+            </CardTitle>
+            <CardDescription className="text-gray-300">
+              Generate specific analysis questions for your survey data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="personality-select" className="text-white">AI Personality</Label>
+              <Select value={selectedPersonality} onValueChange={setSelectedPersonality} disabled={uploading}>
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue placeholder="Select a personality" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700 border-gray-600">
+                  {personalities.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-xs text-gray-400">{p.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                Choose the AI personality for generating analysis questions
+              </p>
+            </div>
+
+            <Button 
+              onClick={generateAISuggestions} 
+              disabled={generatingSuggestions || !description.trim() || !category || selectedFiles.length === 0 || !selectedPersonality}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {generatingSuggestions ? 'Generating...' : 'Generate Analysis Questions'}
+            </Button>
+
+            {aiSuggestions.length > 0 && (
+              <div className="bg-gray-700/50 p-4 rounded-md">
+                <p className="text-sm font-semibold text-white mb-2">Suggested Questions:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-300">
+                  {aiSuggestions.map((q, i) => <li key={i}>{q}</li>)}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* File Selection */}
+      <Card className="bg-gray-800/50 border-gray-600">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Select Files
+          </CardTitle>
+          <CardDescription className="text-gray-300">
+            Upload CSV, XLS, or XLSX files (max {maxFiles} files, 50MB each)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Input
+                type="file"
+                multiple
+                accept={allowedExtensions.join(',')}
+                onChange={handleFileSelect}
+                className="bg-gray-700 border-gray-600 text-white file:bg-gray-600 file:text-white file:border-0 file:rounded file:px-4 file:py-2"
+              />
+            </div>
+            
+            {error && (
+              <Alert className="border-red-600 bg-red-900/20">
+                <AlertCircle className="h-4 w-4 text-red-400" />
+                <AlertDescription className="text-red-300">{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Selected Files Preview */}
+      {selectedFiles.length > 0 && (
+        <Card className="bg-gray-800/50 border-gray-600">
+          <CardHeader>
+            <CardTitle className="text-white">Selected Files ({selectedFiles.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {selectedFiles.map((file) => (
+              <div key={file.id} className="bg-gray-700/50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <p className="text-white font-medium">{file.file.name}</p>
+                      <p className="text-gray-400 text-sm">
+                        {file.file.size ? (file.file.size / 1024 / 1024).toFixed(2) : '0.00'} MB
+                        {file.preview && ` • ${file.preview.totalRows} rows`}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeFile(file.id)}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                {/* File preview */}
+                {file.preview && file.preview.headers.length > 0 && (
+                  <div className="text-sm">
+                    <p className="text-gray-300 mb-2">Preview:</p>
+                    <div className="bg-gray-800 p-3 rounded overflow-x-auto">
+                      <div className="text-xs font-mono">
+                        <div className="text-blue-300 mb-1">
+                          {file.preview.headers.slice(0, 5).join(' | ')}
+                          {file.preview.headers.length > 5 && '...'}
+                        </div>
+                        {file.preview.sampleRows.slice(0, 2).map((row, i) => (
+                          <div key={i} className="text-gray-300">
+                            {row.slice(0, 5).join(' | ')}
+                            {row.length > 5 && '...'}
+                          </div>
+                        ))}
+                        {file.preview.totalRows > 2 && (
+                          <div className="text-gray-500 italic">
+                            ... and {file.preview.totalRows - 2} more rows
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upload Progress */}
+      {uploading && (
+        <Card className="bg-gray-800/50 border-gray-600">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              {/* File Upload Progress */}
+              {progress < 100 ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-gray-300">
+                    <span>Uploading files...</span>
+                    <span>{progress.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={progress} className="w-full" />
+                </div>
+              ) : (
+                // Processing Progress
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-gray-300">
+                    <span>
+                      {isProcessing ? 'Processing semantic analysis... (this may take several minutes)' : 
+                       isProcessingComplete ? 'Processing complete!' :
+                       isProcessingFailed ? 'Processing failed' :
+                       'Starting semantic processing...'}
+                    </span>
+                    {processingStatus && (
+                      <span className="text-xs">
+                        Embeddings: {processingStatus.embeddings_count} | Dictionary: {processingStatus.dictionary_count}
+                      </span>
+                    )}
+                  </div>
+                  <Progress 
+                    value={isProcessingComplete ? 100 : isProcessing ? 75 : 25} 
+                    className="w-full" 
+                  />
+                  {processingStatus && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      Status: {processingStatus.processing_status} | Updated: {new Date(processingStatus.updated_at).toLocaleTimeString()}
+                    </div>
+                  )}
+                  {isProcessing && (
+                    <div className="text-xs text-blue-400 mt-2 italic">
+                      💡 Semantic processing is analyzing your survey data. This process can take 2-5 minutes depending on file size. Please keep this tab open.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Upload Button */}
+      <Button 
+        onClick={uploadFiles} 
+        disabled={uploading || selectedFiles.length === 0 || (!currentSurveyId && !surveyTitle.trim())}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+        size="lg"
+      >
+        {uploading ? (
+          progress < 100 ? (
+            <>Uploading {selectedFiles.length} files...</>
+          ) : isProcessing ? (
+            <>Processing files...</>
+          ) : isProcessingComplete ? (
+            <>Survey created successfully!</>
+          ) : isProcessingFailed ? (
+            <>Processing failed</>
+          ) : (
+            <>Processing...</>
+          )
+        ) : (
+          <>
+            <Upload className="w-4 h-4 mr-2" />
+            Upload {selectedFiles.length} File{selectedFiles.length !== 1 ? 's' : ''}
+            {!currentSurveyId && ' & Create Survey'}
+          </>
+        )}
+      </Button>
+    </div>
+  );
+};

@@ -1,0 +1,111 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  :root {
+    --background: 220 13% 9%;
+    --foreground: 0 0% 98%;
+    --card: 220 13% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 220 13% 9%;
+    --secondary: 217 19% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 217 19% 15%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 217 19% 20%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 19% 15%;
+    --input: 217 19% 15%;
+    --ring: 217 19% 27%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 220 13% 9%;
+    --foreground: 0 0% 98%;
+    --card: 220 13% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 220 13% 9%;
+    --secondary: 217 19% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 217 19% 15%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 217 19% 20%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 19% 15%;
+    --input: 217 19% 15%;
+    --ring: 217 19% 27%;
+  }
+}
+
+
+/* Improved animation for orbiting icons */
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(60px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(60px) rotate(-360deg);
+  }
+}
+
+@keyframes orbit-reverse {
+  from {
+    transform: rotate(0deg) translateX(60px) rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg) translateX(60px) rotate(360deg);
+  }
+}
+
+.animate-orbit {
+  animation: orbit 12s linear infinite;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+}
+
+.animate-orbit-reverse {
+  animation: orbit-reverse 10s linear infinite;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+}
+
+.gradient-background {
+  background-color: #0f0f13;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(45, 53, 100, 0.2) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, rgba(79, 70, 229, 0.2) 0, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(95, 80, 160, 0.1) 0, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(55, 48, 163, 0.1) 0, transparent 50%);
+}
+
+/* Chart container with proper aspect ratio and padding */
+.chart-container {
+  padding: 16px;
+  min-height: 280px;
+}
