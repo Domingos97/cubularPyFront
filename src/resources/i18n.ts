@@ -4,19 +4,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from 'react';
 
 // Static imports for language files
+
 import enTranslations from './en.json';
 import esTranslations from './es.json';
 import ptTranslations from './pt.json';
+import svTranslations from './sv.json';
 
 // Type definitions
 export type TranslationVariables = Record<string, string | number>;
-export type SupportedLanguage = 'en' | 'es' | 'pt';
+export type SupportedLanguage = 'en' | 'es' | 'pt' | 'sv';
 
 // Resource storage with pre-loaded translations
 const resources: Record<SupportedLanguage, Record<string, string>> = {
   en: enTranslations,
   es: esTranslations,
-  pt: ptTranslations
+  pt: ptTranslations,
+  sv: svTranslations
 };
 
 // Load language resource files (now synchronous since they're pre-loaded)
@@ -92,9 +95,9 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
       const savedLang = localStorage.getItem('preferred-language') as SupportedLanguage;
       console.log('🔍 getInitialLanguage - Raw localStorage value:', savedLang);
       console.log('🔍 getInitialLanguage - Type of savedLang:', typeof savedLang);
-      console.log('🔍 getInitialLanguage - Is supported language?', ['en', 'es', 'pt'].includes(savedLang));
+      console.log('🔍 getInitialLanguage - Is supported language?', ['en', 'es', 'pt', 'sv'].includes(savedLang));
       
-      if (savedLang && ['en', 'es', 'pt'].includes(savedLang)) {
+      if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang)) {
         console.log(`🌐 ✅ Initializing with saved language: ${savedLang}`);
         return savedLang;
       } else {
@@ -121,9 +124,10 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
       console.log('🌐 Current state:', { currentLanguage, defaultLanguage });
       
       // Initialize all language files (they're pre-loaded via static imports)
-      loadLanguage('en');
-      loadLanguage('es');
-      loadLanguage('pt');
+  loadLanguage('en');
+  loadLanguage('es');
+  loadLanguage('pt');
+  loadLanguage('sv');
       
       // Verify current language is still correct after mount
       try {
@@ -131,11 +135,11 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
         console.log('🔍 Re-checking localStorage after mount:', { 
           savedLang, 
           currentLanguage, 
-          isValid: savedLang && ['en', 'es', 'pt'].includes(savedLang),
+          isValid: savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang),
           needsUpdate: savedLang !== currentLanguage 
         });
         
-        if (savedLang && ['en', 'es', 'pt'].includes(savedLang) && savedLang !== currentLanguage) {
+        if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang) && savedLang !== currentLanguage) {
           console.log(`🌐 🔄 Correcting language from ${currentLanguage} to ${savedLang}`);
           setCurrentLanguage(savedLang);
         } else {
