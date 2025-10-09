@@ -22,6 +22,7 @@ interface ChatMessage {
   content: string;
   sender: 'user' | 'assistant';
   timestamp: string;
+  message_language?: string; // ISO 639-1 language code for message language tracking
   data_snapshot?: any;
   confidence?: number;
   personality_used?: string;
@@ -39,14 +40,12 @@ export function useChatSessions() {
 
   const loadChatSessions = useCallback(async (surveyId?: string) => {
     if (!user?.id) return;
-    console.log('🌐 API CALL: Starting loadChatSessions for user:', user.id, 'survey:', surveyId);
     setIsLoading(true);
     try {
       let url = `/api/chat/sessions?userId=${user.id}`;
       if (surveyId) {
         url += `&surveyId=${surveyId}`;
       }
-      console.log('🌐 API CALL: Fetching from URL:', url);
       const response = await authenticatedFetch(url);
       
       if (!response.ok) {
@@ -56,17 +55,13 @@ export function useChatSessions() {
       }
       
       const data = await response.json();
-      console.log('✅ API SUCCESS: Received data:', data);
       // Ensure data is always an array
       const sessions = Array.isArray(data) ? data : [];
-      console.log('✅ API SUCCESS: Setting sessions:', sessions.length, 'sessions');
       setChatSessions(sessions);
     } catch (error) {
-      console.error('❌ API ERROR: Failed to load chat sessions:', error);
       setChatSessions([]);
     } finally {
       setIsLoading(false);
-      console.log('🌐 API CALL: Completed loadChatSessions');
     }
   }, [user?.id]);
 
@@ -152,7 +147,6 @@ export function useChatSessions() {
     const sessionId = urlParams.get('session');
     
     if (sessionId && sessionId !== currentSession?.id && chatSessions.length > 0) {
-      console.log('useChatSessions: Auto-loading session from URL:', sessionId);
       loadSession(sessionId);
     }
   }, [location.search, currentSession?.id, chatSessions.length]);

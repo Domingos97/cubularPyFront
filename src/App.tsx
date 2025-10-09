@@ -9,6 +9,7 @@ import { SurveyProvider } from "./contexts/SurveyContext";
 import { LanguageProvider } from "./resources/i18n";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { UserLanguageSync } from "./components/UserLanguageSync";
 import { Suspense, lazy } from "react";
 
 // Lazy load pages for code splitting
@@ -40,6 +41,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider defaultLanguage="en">
       <AuthProvider>
+        <UserLanguageSync />
         <SurveyProvider>
           <TooltipProvider>
             <Toaster />

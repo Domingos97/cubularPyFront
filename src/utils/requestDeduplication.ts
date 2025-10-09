@@ -49,7 +49,6 @@ const executeWithRetry = async (
       if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('Too Many Requests')) {
         if (attempt < maxRetries) {
           const delay = calculateDelay(attempt, baseDelay);
-          console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
           await sleep(delay);
           continue;
         }
@@ -81,7 +80,6 @@ export const deduplicatedRequest = async <T = any>({
   if (cacheDuration > 0) {
     const cached = responseCache.get(cacheKey);
     if (cached && now < cached.expiresAt) {
-      console.log(`Using cached response for: ${cacheKey}`);
       return cached.data;
     }
   }
@@ -89,12 +87,10 @@ export const deduplicatedRequest = async <T = any>({
   // Check if there's already an ongoing request for this cache key
   const ongoingRequest = ongoingRequests.get(cacheKey);
   if (ongoingRequest) {
-    console.log(`Deduplicating request for: ${cacheKey}`);
     return ongoingRequest;
   }
 
   // Create and store the new request with retry logic
-  console.log(`Making new request for: ${cacheKey}`);
   const requestPromise = executeWithRetry(request, maxRetries, retryDelay)
     .then((result) => {
       // Cache the successful result if caching is enabled
@@ -122,7 +118,6 @@ export const deduplicatedRequest = async <T = any>({
  */
 export const clearCache = (cacheKey: string): void => {
   responseCache.delete(cacheKey);
-  console.log(`Cleared cache for: ${cacheKey}`);
 };
 
 /**
@@ -130,7 +125,6 @@ export const clearCache = (cacheKey: string): void => {
  */
 export const clearAllCache = (): void => {
   responseCache.clear();
-  console.log('Cleared all cached responses');
 };
 
 /**
@@ -162,7 +156,4 @@ export const cleanupExpiredCache = (): void => {
     }
   }
   
-  if (cleanedCount > 0) {
-    console.log(`Cleaned up ${cleanedCount} expired cache entries`);
-  }
 };

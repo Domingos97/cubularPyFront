@@ -18,6 +18,7 @@ export interface Survey {
   createdat?: string; // For backward compatibility
   created_at?: string; // New timestamp field
   storage_path?: string; // Keep for backward compatibility
+  primary_language?: string; // ISO 639-1 language code for survey's primary language
   category?: string;
   description?: string;
   ai_suggestions?: string[];
@@ -43,6 +44,7 @@ export interface CreateSurveyRequest {
   title: string;
   category?: string;
   description?: string;
+  primary_language?: string; // ISO 639-1 language code for survey's primary language
   number_participants?: number;
   ai_suggestions?: string[];
 }

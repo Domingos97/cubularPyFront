@@ -75,12 +75,9 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
 
   // Load chat sessions filtered by selected survey
   useEffect(() => {
-    console.log('📊 SESSION LOADING: Effect triggered for survey:', selectedSurvey?.id);
     if (selectedSurvey?.id) {
-      console.log('📊 SESSION LOADING: Loading sessions for survey:', selectedSurvey.id);
       loadChatSessions(selectedSurvey.id);
     } else {
-      console.log('📊 SESSION LOADING: No survey selected, loading all sessions');
       // Load all sessions if no survey is selected
       loadChatSessions();
     }
@@ -88,11 +85,6 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
 
   // Track when sessions state changes
   useEffect(() => {
-    console.log('📋 SESSIONS STATE: Changed for survey:', selectedSurvey?.id, {
-      sessionsCount: chatSessions.length,
-      sessionTitles: chatSessions.map(s => s.title),
-      isLoading
-    });
   }, [chatSessions, selectedSurvey?.id, isLoading]);
 
   // Auto-load the last chat when sessions are loaded for the selected survey
@@ -118,7 +110,6 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
 
   const handleNewChat = async () => {
     if (selectedSurvey) {
-      console.log('🎯 Creating new session with selected files from sidebar:', selectedFiles);
       const result = await createNewSession([selectedSurvey], selectedSurvey.category, selectedPersonalityId, selectedFiles);
       if (result && onNewChat) {
         onNewChat(result.id);
@@ -127,68 +118,50 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
   };
 
   const handleSurveySelect = async (surveyId: string) => {
-    console.log('🔄 SURVEY CHANGE: Starting survey selection for:', surveyId);
     const survey = surveys.find(s => s.id === surveyId);
     if (!survey) {
-      console.log('❌ SURVEY CHANGE: Survey not found:', surveyId);
       return;
     }
     
     const isNewSurvey = survey.id !== selectedSurvey?.id;
-    console.log('🔄 SURVEY CHANGE: Is new survey?', isNewSurvey, 'Previous:', selectedSurvey?.id);
     
     if (isNewSurvey) {
-      console.log('🔄 SURVEY CHANGE: Processing new survey selection...');
       
       // Clear current session first
       clearCurrentSession();
-      console.log('🔄 SURVEY CHANGE: Cleared current session');
       
       // Update the survey selection (this will trigger the useEffect to load sessions)
       onSurveyChange(survey);
-      console.log('🔄 SURVEY CHANGE: Updated survey selection to:', survey.title || survey.filename);
       
       // Force immediate reload of chat sessions for the new survey
-      console.log('🔄 SURVEY CHANGE: Force loading sessions for survey:', surveyId);
       try {
         await loadChatSessions(surveyId);
-        console.log('🔄 SURVEY CHANGE: Sessions loading completed');
       } catch (error) {
-        console.error('❌ SURVEY CHANGE: Error loading sessions:', error);
       }
       
       // Navigate without session parameter - auto-load will handle it if sessions exist
       navigate('/survey-results', { replace: true });
-      console.log('🔄 SURVEY CHANGE: Navigation completed');
     } else {
-      console.log('🔄 SURVEY CHANGE: Same survey selected, just updating selection');
       // Same survey selected, just update the selection
       onSurveyChange(survey);
     }
   };
 
   const handleChatSelect = (sessionId: string) => {
-    console.log('ChatSidebar: handleChatSelect called with sessionId:', sessionId);
-    console.log('ChatSidebar: isLoadingSession:', isLoadingSession);
     
     // Prevent clicking if already loading a session
     if (isLoadingSession) {
-      console.log('ChatSidebar: Skipping click - already loading session');
       return;
     }
     
-    console.log('ChatSidebar: Processing chat selection...');
     
     // Use callback if provided
     if (onChatSelect) {
-      console.log('ChatSidebar: Calling onChatSelect callback');
       onChatSelect(sessionId);
     } else {
-      console.log('ChatSidebar: No onChatSelect callback provided');
     }
     
     // Also navigate to include session ID in URL for proper state management
-    console.log('ChatSidebar: Navigating to URL with session parameter');
     navigate(`/survey-results?session=${sessionId}`, { replace: true });
   };
 

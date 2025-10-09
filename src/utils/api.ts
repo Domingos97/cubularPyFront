@@ -1,5 +1,14 @@
 // Utility functions for making authenticated API requests
 
+import type { 
+  SupportedLanguage, 
+  SupportedLanguagesResponse, 
+  PromptTranslation, 
+  PromptTranslationsResponse,
+  CreatePromptTranslationRequest,
+  UpdatePromptTranslationRequest 
+} from '@/types/language';
+
 export const getAuthHeaders = (includeContentType: boolean = true) => {
   const token = localStorage.getItem('authToken');
   const headers: Record<string, string> = {};
@@ -150,4 +159,158 @@ export const authenticatedApiRequest = async <T = any>(url: string, options: Req
     throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
   }
   return response.json();
+};
+
+// Language Management API Functions
+
+/**
+ * Fetch all supported languages from the backend
+ */
+export const fetchSupportedLanguages = async (): Promise<SupportedLanguagesResponse> => {
+  const response = await authenticatedFetch('http://localhost:3000/api/languages/supported');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch supported languages: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Fetch enabled languages only
+ */
+export const fetchEnabledLanguages = async (): Promise<SupportedLanguage[]> => {
+  const response = await authenticatedFetch('http://localhost:3000/api/languages/enabled');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch enabled languages: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Get user settings
+ */
+export const getUserSettings = async (userId: string): Promise<any> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user settings: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Update user's language preference
+ */
+export const updateUserLanguagePreference = async (languageCode: string): Promise<void> => {
+  // Get current user info from JWT token
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+  
+  // Decode token to get user ID
+  const { jwtDecode } = await import('jwt-decode');
+  const decoded: any = jwtDecode(token);
+  const userId = decoded.id;
+  
+  if (!userId) {
+    throw new Error('User ID not found in token');
+  }
+  
+  try {
+    // First, get current user settings to preserve other settings
+    const currentSettings = await getUserSettings(userId);
+    
+    // Update the settings with new language preference
+    const updatedSettings = {
+      ...currentSettings,
+      language_preference: languageCode
+    };
+    
+    const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(updatedSettings)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update language preference: ${response.status}`);
+    }
+  } catch (fetchError) {
+    // If getting current settings fails, try to update with just the language preference
+    console.warn('Could not fetch current settings, updating language preference only:', fetchError);
+    const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify({ language_preference: languageCode })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update language preference: ${response.status}`);
+    }
+  }
+};
+
+// Prompt Translations API Functions
+
+/**
+ * Fetch prompt translations for a specific personality and language
+ */
+export const fetchPromptTranslations = async (
+  personalityId: string, 
+  languageCode?: string
+): Promise<PromptTranslationsResponse> => {
+  const params = new URLSearchParams({ personality_id: personalityId });
+  if (languageCode) {
+    params.append('language_code', languageCode);
+  }
+  
+  const response = await authenticatedFetch(
+    `http://localhost:3000/api/prompts/translations?${params.toString()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch prompt translations: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Create a new prompt translation
+ */
+export const createPromptTranslation = async (
+  data: CreatePromptTranslationRequest
+): Promise<PromptTranslation> => {
+  const response = await authenticatedFetch('http://localhost:3000/api/prompts/translations', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create prompt translation: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Update an existing prompt translation
+ */
+export const updatePromptTranslation = async (
+  translationId: string,
+  data: UpdatePromptTranslationRequest
+): Promise<PromptTranslation> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/prompts/translations/${translationId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update prompt translation: ${response.status}`);
+  }
+  return response.json();
+};
+
+/**
+ * Delete a prompt translation
+ */
+export const deletePromptTranslation = async (translationId: string): Promise<void> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/prompts/translations/${translationId}`, {
+    method: 'DELETE'
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete prompt translation: ${response.status}`);
+  }
 };

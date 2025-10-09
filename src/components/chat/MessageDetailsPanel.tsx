@@ -229,15 +229,9 @@ export const MessageDetailsPanel: React.FC<MessageDetailsPanelProps> = ({
 
   // Debug logging to verify data_snapshot mapping
   React.useEffect(() => {
-    if (isOpen) {
-      console.log('MessageDetailsPanel - dataSnapshot:', dataSnapshot);
-      console.log('MessageDetailsPanel - dataSnapshot type:', typeof dataSnapshot);
-      console.log('MessageDetailsPanel - isNewFormat:', isNewFormat);
-      console.log('MessageDetailsPanel - hasData:', hasData);
-      console.log('MessageDetailsPanel - confidence:', confidence);
-    }
+    
   }, [isOpen, dataSnapshot, hasData, confidence, isNewFormat]);
-
+ 
   return (
     <div 
       className={`fixed top-0 right-0 h-full w-96 bg-gray-900/98 border-l border-gray-700 backdrop-blur-sm z-40 transform transition-transform duration-300 ease-in-out ${

@@ -20,6 +20,7 @@ interface ChatMessage {
   content: string;
   sender: string;
   timestamp: string;
+  message_language?: string; // ISO 639-1 language code for message language tracking
   confidence?: any;
   data_snapshot?: any;
 }

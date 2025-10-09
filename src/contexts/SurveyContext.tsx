@@ -41,9 +41,7 @@ export const SurveyProvider: React.FC<SurveyProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      console.log('>>> Making API request for user surveys');
       const data = await authenticatedApiRequest('http://localhost:3000/api/surveys/my-surveys');
-      console.log('✅ Surveys loaded successfully:', data?.length || 0, 'items');
       
       setSurveys(data || []);
       setLastFetchTime(Date.now());

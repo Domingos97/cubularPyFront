@@ -7,6 +7,7 @@ export interface User {
   created_at?: string;
   updated_at?: string;
   preferred_personality?: string;
+  language_preference?: string; // ISO 639-1 language code (e.g., 'en', 'es', 'pt', 'sv')
   role_id?: string;
   role?: string; // Simple string role from JWT (e.g., 'admin', 'user')
   role_details?: {

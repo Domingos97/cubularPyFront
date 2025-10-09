@@ -24,8 +24,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Login using backend API
   const login = async (email: string, password: string) => {
     try {
-      // Login API call
-      console.log('🔍 Frontend login attempt:', { email, passwordLength: password.length });
       
       const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
@@ -44,13 +42,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Decode token to get user info
         const decoded: any = jwtDecode(data.accessToken);
         
-        // Debug: Log login token data
-        console.log('DEBUG - Login token decoded:', { 
-          id: decoded.id, 
-          email: decoded.email, 
-          role: decoded.role
-        });
-        
         // No profile fetch needed - JWT contains all required data
         
         const userRole = decoded.role;
@@ -60,10 +51,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           id: decoded.id, 
           email: decoded.email,
           role: userRole,
+          language_preference: decoded.language || 'en',
           welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
         };
         
-        console.log('DEBUG - Login setting user (JWT only):', userData);
         setUser(userData);
         return { success: true, role: userRole };
       }
@@ -77,7 +68,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const register = async (email: string, username: string, password: string) => {
     try {
       // Register API call
-      console.log('🔍 Frontend register attempt:', { email, username, passwordLength: password.length });
       
       const response = await fetch('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -206,6 +196,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             id: decoded.id, 
             email: decoded.email, 
             role: decoded.role,
+            language: decoded.language,
             exp: decoded.exp 
           });
           
@@ -221,13 +212,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             id: decoded.id, 
             email: decoded.email,
             role: decoded.role,
+            language_preference: decoded.language || 'en',
             welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
           };
           
-          console.log('DEBUG - Setting user data (JWT only):', userData);
           setUser(userData);
         } catch (e) {
-          console.error('Auth initialization error:', e);
           setUser(null);
           localStorage.removeItem('authToken');
           localStorage.removeItem('refreshToken');
@@ -260,10 +250,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Function to update user data locally
   const updateUser = (updates: Partial<User>) => {
     if (user) {
-      console.log('🔍 useAuth - Updating user with:', updates);
-      console.log('🔍 useAuth - Current user before update:', user);
       const updatedUser = { ...user, ...updates };
-      console.log('🔍 useAuth - Updated user after merge:', updatedUser);
       setUser(updatedUser);
     }
   };

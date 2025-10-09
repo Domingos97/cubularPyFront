@@ -56,18 +56,14 @@ export const FileSelectionComponent: React.FC<FileSelectionComponentProps> = ({
   // Fetch file access for current user for this survey
   const loadFileAccess = async (surveyId: string) => {
     try {
-      console.log('🔐 Loading file access for surveyId:', surveyId);
       const data = await authenticatedApiRequest(`http://localhost:3000/api/surveys/${surveyId}/my-file-access`);
-      console.log('🗝️ File access response:', data);
       // data: Array<{ fileId, accessType }>
       const map: Record<string, FileAccess> = {};
       (data || []).forEach((fa: FileAccess) => {
         map[fa.fileId] = fa;
       });
-      console.log('🎯 File access map:', map);
       setFileAccessMap(map);
     } catch (err) {
-      console.error('❌ Error loading file access:', err);
       setFileAccessMap({});
     }
   };
@@ -83,15 +79,11 @@ export const FileSelectionComponent: React.FC<FileSelectionComponentProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      console.log('🔍 Loading survey files for surveyId:', surveyId);
       const data = await authenticatedApiRequest(`http://localhost:3000/api/surveys/${surveyId}/with-files`);
-      console.log('📁 Survey files response:', data);
       const files = data.files || [];
-      console.log('📄 Extracted files:', files);
       setSurveyFiles(files);
       // Do not auto-select here; handled in useEffect after both files and access map are loaded
     } catch (error) {
-      console.error('❌ Error loading survey files:', error);
       setError('Failed to load survey files');
       setSurveyFiles([]);
     } finally {

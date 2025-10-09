@@ -101,7 +101,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       navigator.clipboard.writeText(JSON.stringify(report, null, 2)).then(() => {
         alert('Error report copied to clipboard. Please share this with support.');
       }).catch(() => {
-        console.log('Error report:', report);
         alert('Error report logged to console. Please check the console and share with support.');
       });
     }

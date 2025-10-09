@@ -98,11 +98,42 @@ export const InlineDataSnapshot: React.FC<InlineDataSnapshotProps> = ({
         
         return (
           <div className="space-y-1">
-            {displayItems.map((item, index) => (
-              <div key={index} className="text-sm text-gray-200 bg-gray-800/40 rounded-lg px-3 py-2">
-                {String(item)}
-              </div>
-            ))}
+            {displayItems.map((item, index) => {
+              // Handle stats array with category/items structure
+              if (typeof item === 'object' && item !== null && item.category) {
+                return (
+                  <div key={index} className="bg-gradient-to-r from-blue-900/40 to-blue-800/30 rounded-lg p-3 border border-blue-400/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{item.icon || '📊'}</span>
+                      <span className="text-blue-300 font-semibold text-sm">{item.category}</span>
+                    </div>
+                    {item.items && Array.isArray(item.items) && (
+                      <div className="space-y-1 ml-4">
+                        {item.items.slice(0, isItemExpanded ? item.items.length : 2).map((subItem: any, subIndex: number) => (
+                          <div key={subIndex} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-200">{subItem.label}</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-green-400 font-medium">{subItem.percentage}%</span>
+                              <span className="text-gray-400">({subItem.count})</span>
+                            </div>
+                          </div>
+                        ))}
+                        {!isItemExpanded && item.items.length > 2 && (
+                          <div className="text-xs text-gray-400 italic">
+                            +{item.items.length - 2} more items
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div key={index} className="text-sm text-gray-200 bg-gray-800/40 rounded-lg px-3 py-2">
+                  {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
+                </div>
+              );
+            })}
             {value.length > 3 && (
               <Button
                 variant="ghost"
@@ -126,7 +157,7 @@ export const InlineDataSnapshot: React.FC<InlineDataSnapshotProps> = ({
           {Object.entries(value).slice(0, 3).map(([subKey, val]) => (
             <div key={subKey} className="text-sm bg-gray-800/30 rounded px-3 py-2">
               <span className="text-blue-300 font-medium">{subKey}:</span>
-              <span className="text-gray-200 ml-2">{String(val)}</span>
+              <span className="text-gray-200 ml-2">{typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val)}</span>
             </div>
           ))}
         </div>

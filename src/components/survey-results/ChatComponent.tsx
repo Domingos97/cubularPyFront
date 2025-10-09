@@ -76,9 +76,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
     if (currentSession?.id) {
       
       const mappedMessages = currentMessages.map((msg, index) => {
-        console.log(`Mapping message ${index}:`, msg);
-        console.log(`Data snapshot for message ${index}:`, msg.data_snapshot);
-        console.log(`Confidence for message ${index}:`, msg.confidence);
         
         // Parse data_snapshot if it's a string
         let parsedDataSnapshot = msg.data_snapshot;
@@ -113,7 +110,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
             : parsedConfidence
         };
         
-        console.log(`Mapped message ${index}:`, mappedMessage);
         return mappedMessage;
       });
       
@@ -180,7 +176,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         throw new Error('Please select a survey first');
       }
 
-      console.log('🎯 Sending message with selected files:', selectedFiles);
 
       // Add user message
       const userMessage: Message = {
@@ -239,7 +234,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
       // If a new session was created, load it
       if (data.sessionId && data.sessionId !== currentSession?.id) {
-        console.log('New session created:', data.sessionId);
         await loadSession(data.sessionId);
       }
 
@@ -256,10 +250,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         } : undefined
       };
 
-      console.log('New assistant response created:', assistantResponse);
-      console.log('DataSnapshot in new response:', assistantResponse.dataSnapshot);
-      console.log('DataSnapshot type:', assistantResponse.dataSnapshot ? (assistantResponse.dataSnapshot.summary ? 'new format' : 'old format') : 'none');
-      console.log('Full API response data:', data);
 
       // Remove typing indicator and add response
       setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([assistantResponse]));
@@ -320,7 +310,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         onPersonalityChange={onPersonalityChange || (() => {})}
         selectedFiles={selectedFiles}
         onNewChat={async (sessionId) => {
-          console.log('🎯 Loading new session with selected files:', selectedFiles);
           await loadSession(sessionId);
         }}
         onChatSelect={async (sessionId) => {
@@ -347,7 +336,6 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
               
               // If the session has a different personality, switch to it
               if (sessionData.session.personality_id && sessionData.session.personality_id !== selectedPersonalityId) {
-                console.log('Switching personality to:', sessionData.session.personality_id);
                 onPersonalityChange?.(sessionData.session.personality_id);
               }
             }

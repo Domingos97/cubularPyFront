@@ -20,7 +20,7 @@ interface Survey {
 interface AdminSurveysManagementProps {
   surveys: Survey[];
   onSurveyAdded: () => void;
-  onSurveyDeleted: () => void;
+  onSurveyDeleted: (surveyId?: string) => void;
 }
 
 export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted }: AdminSurveysManagementProps) => {
@@ -44,7 +44,8 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
         throw new Error(data.error || 'Failed to delete survey');
       }
 
-      onSurveyDeleted();
+      // Pass the surveyId to enable optimistic updates
+      onSurveyDeleted(surveyId);
       toast({
         title: t('admin.toast.success'),
         description: t('admin.surveys.deleteSuccess')

@@ -64,7 +64,6 @@ export const LLMSettingsTest = () => {
         title: "Get All Success",
         description: `Found ${allSettings.length} settings`,
       });
-      console.log('All settings:', allSettings);
     } catch (error) {
       toast({
         title: "Get All Error",

@@ -1,13 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
-import { UserIcon, Camera } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { fetchEnabledLanguages, updateUserLanguagePreference } from '@/utils/api';
+import type { SupportedLanguage } from '@/types/language';
+import { UserIcon, Camera, Languages } from 'lucide-react';
 
 interface ProfileTabProps {
   className?: string;
@@ -17,8 +27,71 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
   const [name, setName] = useState("John Doe");
   const [email, setEmail] = useState("john.doe@example.com");
   const [isLoading, setIsLoading] = useState(false);
+  const [availableLanguages, setAvailableLanguages] = useState<SupportedLanguage[]>([]);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, currentLanguage, setLanguage } = useTranslation();
+  const { user, updateUser } = useAuth();
+
+  // Load available languages and user's current preference
+  useEffect(() => {
+    const loadLanguages = async () => {
+      try {
+        const languages = await fetchEnabledLanguages();
+        setAvailableLanguages(languages);
+        
+        // Set current user's language preference or default to current language
+        const userLangPreference = user?.language_preference || currentLanguage;
+        setSelectedLanguage(userLangPreference);
+      } catch (error) {
+        console.error('Failed to load languages:', error);
+      }
+    };
+
+    loadLanguages();
+  }, [user, currentLanguage]);
+
+  // Get flag for language
+  const getFlagForLanguage = (code: string): string => {
+    const flagMap: Record<string, string> = {
+      'en': '🇺🇸', 'es': '🇪🇸', 'pt': '🇵🇹', 'sv': '🇸🇪',
+      'fr': '🇫🇷', 'de': '🇩🇪', 'it': '🇮🇹', 'ru': '🇷🇺',
+      'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ar': '🇸🇦',
+    };
+    return flagMap[code] || '🌐';
+  };
+
+  // Handle language preference change
+  const handleLanguageChange = async (languageCode: string) => {
+    try {
+      setSelectedLanguage(languageCode);
+      
+      // Update backend
+      await updateUserLanguagePreference(languageCode);
+      
+      // Update frontend language
+      setLanguage(languageCode as any);
+      
+      // Update user object
+      if (user) {
+        updateUser({ language_preference: languageCode });
+      }
+      
+      toast({
+        title: t('settings.profile.languageUpdated'),
+        description: t('settings.profile.languageUpdateSuccess'),
+      });
+    } catch (error) {
+      console.error('Failed to update language preference:', error);
+      toast({
+        title: t('settings.profile.updateError'),
+        description: t('settings.profile.languageUpdateError'),
+        variant: 'destructive'
+      });
+      // Revert the selection
+      setSelectedLanguage(user?.language_preference || currentLanguage);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setIsLoading(true);
@@ -142,6 +215,33 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
                   <option value="Europe/Paris">Paris (CET)</option>
                   <option value="Asia/Tokyo">Tokyo (JST)</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-start">
+              <Label htmlFor="language" className="md:text-right text-gray-300 font-medium md:pt-2">
+                {t('settings.profile.language')}
+              </Label>
+              <div className="md:col-span-3">
+                <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                  <SelectTrigger className="bg-gray-700/50 border-gray-600 text-gray-200 focus:border-blue-500">
+                    <SelectValue placeholder="Select language..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableLanguages.map((language) => (
+                      <SelectItem key={language.code} value={language.code}>
+                        <div className="flex items-center gap-2">
+                          <span>{getFlagForLanguage(language.code)}</span>
+                          <span>{language.native_name}</span>
+                          <span className="text-gray-500 text-sm">({language.name})</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t('settings.profile.languageHelpText')}
+                </p>
               </div>
             </div>
           </div>

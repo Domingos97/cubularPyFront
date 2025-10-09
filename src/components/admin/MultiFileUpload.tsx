@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { authenticatedFetch } from '@/utils/api';
 import { SurveyFile, Survey, CreateSurveyRequest, AddFileToSurveyResponse } from '@/types/survey';
 import type { AIPersonality } from '@/hooks/usePersonalities';
-import { useProcessingStatus } from '@/hooks/useProcessingStatus';
 import { useTranslation } from '@/resources/i18n';
 import * as XLSX from 'xlsx';
 
@@ -81,42 +80,6 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     setProgress(0);
     setError('');
   }, [personalities]);
-
-  // Processing status tracking
-  const {
-    status: processingStatus,
-    isComplete: isProcessingComplete,
-    isProcessing,
-    isFailed: isProcessingFailed
-  } = useProcessingStatus({
-    surveyId: createdSurveyId,
-    enabled: !!createdSurveyId && uploading,
-    onComplete: () => {
-      setProcessingComplete(true);
-      setUploading(false);
-      
-      toast({
-        title: "Survey Created Successfully",
-        description: "All files have been processed and semantic analysis is complete.",
-      });
-      
-      // Reset form after successful completion
-      resetForm();
-      
-      if (onUploadComplete) {
-        onUploadComplete();
-      }
-    },
-    onError: (error) => {
-      console.error('Processing status error:', error);
-      setUploading(false);
-      toast({
-        title: "Processing Failed", 
-        description: "Survey was created but semantic processing failed.",
-        variant: "destructive",
-      });
-    }
-  });
 
   // Fetch AI personalities on component mount
   React.useEffect(() => {
@@ -459,14 +422,11 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
           });
           
           if (!response.ok) {
-            console.warn('Failed to generate and save AI suggestions to survey:', response.status);
             // Don't throw here, continue with file upload even if suggestions save fails
           } else {
             const suggestionData = await response.json();
-            console.log('Successfully generated and saved AI suggestions to survey:', suggestionData.suggestions?.length || 0);
           }
         } catch (suggestionError) {
-          console.warn('Error generating and saving AI suggestions:', suggestionError);
           // Don't throw here, continue with file upload even if suggestions save fails
         }
       }
@@ -501,17 +461,17 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         setProgress(((i + 1) / totalFiles) * 100);
       }
       
-      // All files uploaded successfully - now processing starts in background
+      // All files uploaded successfully - processing will happen in background
       setProgress(100); // Mark upload as complete
       
       let successMessage = `Successfully uploaded ${uploadedFiles.length} files`;
       if (selectedPersonality && description.trim() && category) {
         successMessage += " and generated AI analysis questions";
       }
-      successMessage += ". Starting semantic analysis...";
+      successMessage += ". Processing will continue in background.";
 
       toast({
-        title: "Files Uploaded",
+        title: "Files Uploaded Successfully",
         description: successMessage,
       });
 
@@ -519,8 +479,16 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         onFilesUploaded(uploadedFiles);
       }
 
-      // Processing status polling will be handled by useProcessingStatus hook
-      // Form will reset when processing completes via the onComplete callback
+      // Mark processing as complete and reset form
+      setProcessingComplete(true);
+      setUploading(false);
+      
+      // Reset form after successful completion
+      resetForm();
+      
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
       
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -799,29 +767,18 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-300">
                     <span>
-                      {isProcessing ? 'Processing semantic analysis... (this may take several minutes)' : 
-                       isProcessingComplete ? 'Processing complete!' :
-                       isProcessingFailed ? 'Processing failed' :
-                       'Starting semantic processing...'}
+                      {progress < 100 ? 'Uploading files...' : 
+                       processingComplete ? 'Upload complete!' :
+                       'Processing...'}
                     </span>
-                    {processingStatus && (
-                      <span className="text-xs">
-                        Embeddings: {processingStatus.embeddings_count} | Dictionary: {processingStatus.dictionary_count}
-                      </span>
-                    )}
                   </div>
                   <Progress 
-                    value={isProcessingComplete ? 100 : isProcessing ? 75 : 25} 
+                    value={processingComplete ? 100 : progress} 
                     className="w-full" 
                   />
-                  {processingStatus && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      Status: {processingStatus.processing_status} | Updated: {new Date(processingStatus.updated_at).toLocaleTimeString()}
-                    </div>
-                  )}
-                  {isProcessing && (
+                  {progress >= 100 && !processingComplete && (
                     <div className="text-xs text-blue-400 mt-2 italic">
-                      💡 Semantic processing is analyzing your survey data. This process can take 2-5 minutes depending on file size. Please keep this tab open.
+                      💡 Files uploaded successfully. Processing in background.
                     </div>
                   )}
                 </div>
@@ -841,12 +798,8 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         {uploading ? (
           progress < 100 ? (
             <>Uploading {selectedFiles.length} files...</>
-          ) : isProcessing ? (
-            <>Processing files...</>
-          ) : isProcessingComplete ? (
+          ) : processingComplete ? (
             <>Survey created successfully!</>
-          ) : isProcessingFailed ? (
-            <>Processing failed</>
           ) : (
             <>Processing...</>
           )

@@ -58,7 +58,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       
       // If we have an initial survey, start loading its files
       if (initialSurvey) {
-        console.log('🔍 FRONTEND: Initial survey provided, calling loadSurveyFiles with:', initialSurvey.id);
         loadSurveyFiles(initialSurvey.id);
       }
     }
@@ -66,15 +65,12 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
 
   // Load files when survey is selected
   useEffect(() => {
-    console.log('🔍 FRONTEND: Survey selection useEffect triggered. selectedSurvey:', selectedSurvey);
     if (selectedSurvey?.id) {
-      console.log('🔍 FRONTEND: About to call loadSurveyFiles with ID:', selectedSurvey.id);
       loadSurveyFiles(selectedSurvey.id);
     }
   }, [selectedSurvey]);
 
   const loadSurveyFiles = async (surveyId: string) => {
-    console.log('🔍 FRONTEND: loadSurveyFiles called with surveyId:', surveyId);
     setIsLoadingFiles(true);
     setAccessError(null);
 
@@ -121,11 +117,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
         processingStatus: file.processingStatus || 'not_started'
       }));
 
-      console.log('🔍 PreChatModal: Raw accessibleFiles from backend:', accessibleFiles);
-      console.log('🔍 PreChatModal: Enhanced files with processing status:', enhancedFiles);
-      console.log('🔍 PreChatModal: Processed files count:', enhancedFiles.filter(f => f.isProcessed).length);
-      console.log('🔍 PreChatModal: Total files count:', enhancedFiles.length);
-      
       // Debug individual file details
       enhancedFiles.forEach((file, index) => {
         console.log(`🔍 PreChatModal: File ${index + 1}:`, {
@@ -177,31 +168,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     setPreloadingProgress({ current: 0, total: 3 });
 
     try {
-      // Step 1: Pre-load selected files using the batch endpoint
-      setPreloadingProgress({ current: 1, total: 3 });
-      
-      const preloadResponse = await authenticatedFetch(`/api/surveys/${selectedSurvey.id}/files/preload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileIds: selectedFiles
-        })
-      });
-
-      if (!preloadResponse.ok) {
-        throw new Error(t('preChatModal.errors.preloadFailed') || 'Failed to preload files');
-      }
-
-      const preloadData = await preloadResponse.json();
-      
-      // Check if all files were successfully preloaded
-      const failedFiles = preloadData.results?.filter((result: any) => result.status === 'error') || [];
-      if (failedFiles.length > 0) {
-        throw new Error((t('preChatModal.errors.someFilesFailedPreload') || 'Some files failed to preload') + `: ${failedFiles.map((f: any) => f.fileId).join(', ')}`);
-      }
-
-      // Step 2: Create optimized chat session
-      setPreloadingProgress({ current: 2, total: 3 });
       
       const sessionResponse = await authenticatedFetch('/api/chat/sessions/create-optimized', {
         method: 'POST',
@@ -219,7 +185,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       }
 
       const sessionData = await sessionResponse.json();
-      setPreloadingProgress({ current: 3, total: 3 });
       
       // Notify parent component with the session ID from the response
       const sessionId = sessionData.session?.id || sessionData.sessionId;
@@ -296,7 +261,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
             <Select 
               value={selectedSurvey?.id || ""} 
               onValueChange={(surveyId) => {
-                console.log('🔍 FRONTEND: Survey dropdown changed. SurveyId:', surveyId);
                 const survey = surveys.find(s => s.id === surveyId);
                 console.log('🔍 FRONTEND: Found survey object:', survey);
                 setSelectedSurvey(survey || null);

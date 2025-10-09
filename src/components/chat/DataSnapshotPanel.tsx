@@ -129,11 +129,37 @@ export const DataSnapshotPanel = ({ dataSnapshot }: DataSnapshotProps) => {
         return (
           <div className="space-y-2">
             <div className="grid gap-2">
-              {displayItems.map((item, index) => (
-                <div key={index} className="text-sm text-gray-100 bg-gradient-to-r from-gray-800/40 to-gray-700/30 rounded-lg px-3 py-2 border-l-2 border-blue-400/40">
-                  <span className="font-medium">{String(item)}</span>
-                </div>
-              ))}
+              {displayItems.map((item, index) => {
+                // Handle stats array with category/items structure
+                if (typeof item === 'object' && item !== null && item.category) {
+                  return (
+                    <div key={index} className="bg-gradient-to-r from-blue-900/40 to-blue-800/30 rounded-lg p-3 border border-blue-400/30">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl">{item.icon || '📊'}</span>
+                        <span className="text-blue-300 font-semibold">{item.category}</span>
+                      </div>
+                      {item.items && Array.isArray(item.items) && (
+                        <div className="space-y-1 ml-6">
+                          {item.items.map((subItem: any, subIndex: number) => (
+                            <div key={subIndex} className="flex items-center justify-between text-sm">
+                              <span className="text-gray-200">{subItem.label}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-400 font-medium">{subItem.percentage}%</span>
+                                <span className="text-gray-400">({subItem.count})</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={index} className="text-sm text-gray-100 bg-gradient-to-r from-gray-800/40 to-gray-700/30 rounded-lg px-3 py-2 border-l-2 border-blue-400/40">
+                    <span className="font-medium">{typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}</span>
+                  </div>
+                );
+              })}
             </div>
             {value.length > showLimit && (
               <Button
@@ -161,7 +187,7 @@ export const DataSnapshotPanel = ({ dataSnapshot }: DataSnapshotProps) => {
               <div key={subKey} className="text-sm bg-gradient-to-r from-gray-800/30 to-gray-700/20 rounded-lg px-3 py-2 border border-gray-700/30">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-blue-300 font-semibold text-xs uppercase tracking-wide">{subKey}:</span>
-                  <span className="text-gray-100 font-medium">{String(val || 'No data')}</span>
+                  <span className="text-gray-100 font-medium">{typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val || 'No data')}</span>
                 </div>
               </div>
             ))}

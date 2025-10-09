@@ -219,10 +219,6 @@ export const ModelConfigurationPanel = () => {
   const initializeFormData = (configurations: ModuleConfiguration[]) => {
     const newFormData: Record<string, any> = {};
     
-    console.log('Initializing form data with modules:', modules.map(m => m.name));
-    console.log('Existing configurations:', configurations);
-    console.log('Available LLM settings:', llmSettings);
-    
     modules.forEach(module => {
       const existingConfig = configurations.find(
         (config: ModuleConfiguration) => config.module_name === module.name
@@ -230,9 +226,7 @@ export const ModelConfigurationPanel = () => {
       
       if (existingConfig) {
         // Use existing configuration from database
-        console.log(`Found existing config for ${module.name}:`, existingConfig);
-        console.log(`Provider from llm_settings:`, existingConfig.llm_settings?.provider);
-        console.log(`Model from module config:`, existingConfig.model);
+
         newFormData[module.name] = {
           ...existingConfig,
           // Provider comes from llm_settings, model comes from module_configurations
@@ -241,11 +235,9 @@ export const ModelConfigurationPanel = () => {
           // Ensure ai_personality_id uses 'none' for display if null/undefined
           ai_personality_id: existingConfig.ai_personality_id || 'none'
         };
-        console.log(`Final form data for ${module.name}:`, newFormData[module.name]);
       } else {
         // Use defaults for new configurations with first available LLM setting
         const defaultLlmSetting = getDefaultLlmSettingForModule(module.name);
-        console.log(`Using default config for ${module.name} with LLM setting:`, defaultLlmSetting);
         newFormData[module.name] = {
           ...DEFAULT_CONFIGURATION,
           module_name: module.name,
@@ -257,9 +249,7 @@ export const ModelConfigurationPanel = () => {
       }
     });
     
-    console.log('Setting form data:', newFormData);
     setFormData(newFormData);
-    console.log('Form data has been set, current formData state will update on next render');
   };
 
   const getDefaultModelForModule = (moduleName: string): string => {
@@ -672,8 +662,25 @@ export const ModelConfigurationPanel = () => {
                       </Select>
                     </div>
 
-
-
+                    {/* Model Selection */}
+                    <div className="space-y-2">
+                      <Label className="text-gray-300">{t('admin.aiModels.model')}</Label>
+                      <Select
+                        value={getCurrentModuleConfig(module.name).model || ''}
+                        onValueChange={(value) => updateModel(module.name, value)}
+                      >
+                        <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                          <SelectValue placeholder={t('admin.aiModels.selectModel')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableModels(getCurrentModuleConfig(module.name).provider || 'openai', module.name).map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     {/* Temperature */}
                     <div className="space-y-3">

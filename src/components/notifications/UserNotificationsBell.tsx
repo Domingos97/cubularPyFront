@@ -95,7 +95,6 @@ const UserNotificationsBell = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('User notifications API response:', data);
         const userNotifications = data.data || [];
         
         // Filter to show notifications that have admin responses or are resolved
@@ -112,15 +111,12 @@ const UserNotificationsBell = () => {
         setUnreadCount(unreadNotifications.length);
       } else if (response.status === 404) {
         // Handle case where notification endpoint doesn't exist or user has no notifications
-        console.log('No notifications endpoint or no notifications found');
         setNotifications([]);
         setUnreadCount(0);
       } else {
-        console.error('API response not ok:', response.status, response.statusText);
         throw new Error(`Failed to fetch notifications: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error fetching user notifications:', error);
       // Don't show toast error for background polling - only when user explicitly opens notifications
       if (isOpen) {
         toast({

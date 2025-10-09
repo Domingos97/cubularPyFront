@@ -15,16 +15,11 @@ export const WelcomePopup = () => {
   useEffect(() => {
     // Only show popup when user is authenticated and popup hasn't been shown before
     if (!loading && user && !hasShownForCurrentSession) {
-      // Debug: Log user object to see the welcome_popup_dismissed field
-      console.log('🔍 WelcomePopup - User object:', user);
-      console.log('🔍 WelcomePopup - welcome_popup_dismissed value:', user?.welcome_popup_dismissed);
-      
+
       // Check if user has already dismissed the popup (from database via user object)
       const hasBeenDismissed = user?.welcome_popup_dismissed;
-      console.log('🔍 WelcomePopup - hasBeenDismissed:', hasBeenDismissed);
       
       if (!hasBeenDismissed) {
-        console.log('🔍 WelcomePopup - Showing popup because hasBeenDismissed is false');
         // Small delay to ensure the page has loaded properly
         const timer = setTimeout(() => {
           setIsOpen(true);
@@ -33,7 +28,6 @@ export const WelcomePopup = () => {
         
         return () => clearTimeout(timer);
       } else {
-        console.log('🔍 WelcomePopup - Not showing popup because user has dismissed it');
       }
     }
   }, [user, loading, hasShownForCurrentSession]);
@@ -55,7 +49,6 @@ export const WelcomePopup = () => {
       }
       
       // Update user object locally to prevent popup from showing again
-      console.log('🔍 WelcomePopup - Updating user object with welcome_popup_dismissed:', dismissed);
       updateUser({ welcome_popup_dismissed: dismissed });
     } catch (error) {
       console.error('Error updating welcome popup preference:', error);

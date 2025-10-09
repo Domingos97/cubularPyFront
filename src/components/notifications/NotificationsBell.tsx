@@ -84,20 +84,16 @@ const NotificationsBell = () => {
       setLoading(true);
       const data = await authenticatedApiRequest<{data: NotificationWithUser[]}>('http://localhost:3000/api/notifications/admin/all?limit=100');
       
-      console.log('NotificationsBell API response:', data);
       const allNotifications = data.data || [];
-      console.log('All notifications:', allNotifications.length);
       
       // Filter to show only active notifications (pending and in_progress)
       const activeNotifications = allNotifications.filter((n: NotificationWithUser) => 
         n.status === 'pending' || n.status === 'in_progress'
       );
-      console.log('Active notifications:', activeNotifications.length);
       
       setNotifications(activeNotifications);
       setUnreadCount(allNotifications.filter((n: NotificationWithUser) => n.status === 'pending').length);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
       if (isOpen) {
         toast({
           title: t('notifications.error'),

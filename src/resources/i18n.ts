@@ -30,7 +30,6 @@ export function loadLanguage(lang: SupportedLanguage): void {
     console.error(`Unsupported language: ${lang}`);
     return;
   }
-  console.log(`Language ${lang} is ready (pre-loaded)`);
 }
 
 // Translation function with pluralization support
@@ -73,6 +72,7 @@ export function translate(
 interface LanguageContextType {
   currentLanguage: SupportedLanguage;
   setLanguage: (lang: SupportedLanguage) => void;
+  setUserLanguagePreference: (lang: SupportedLanguage) => void;
   t: (key: string, vars?: TranslationVariables, count?: number) => string;
   isLoading: boolean;
 }
@@ -93,20 +93,13 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   const getInitialLanguage = (): SupportedLanguage => {
     try {
       const savedLang = localStorage.getItem('preferred-language') as SupportedLanguage;
-      console.log('🔍 getInitialLanguage - Raw localStorage value:', savedLang);
-      console.log('🔍 getInitialLanguage - Type of savedLang:', typeof savedLang);
-      console.log('🔍 getInitialLanguage - Is supported language?', ['en', 'es', 'pt', 'sv'].includes(savedLang));
       
       if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang)) {
-        console.log(`🌐 ✅ Initializing with saved language: ${savedLang}`);
         return savedLang;
       } else {
-        console.log(`🌐 ❌ Saved language "${savedLang}" not valid, using default: ${defaultLanguage}`);
       }
     } catch (error) {
-      console.error('🌐 ❌ Failed to read language preference from localStorage:', error);
     }
-    console.log(`🌐 🔄 Initializing with default language: ${defaultLanguage}`);
     return defaultLanguage;
   };
 
@@ -120,8 +113,6 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
     const initializeLanguage = () => {
       if (!isMounted) return;
       
-      console.log('🌐 🚀 Starting language initialization...');
-      console.log('🌐 Current state:', { currentLanguage, defaultLanguage });
       
       // Initialize all language files (they're pre-loaded via static imports)
   loadLanguage('en');
@@ -140,18 +131,14 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
         });
         
         if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang) && savedLang !== currentLanguage) {
-          console.log(`🌐 🔄 Correcting language from ${currentLanguage} to ${savedLang}`);
           setCurrentLanguage(savedLang);
         } else {
-          console.log(`🌐 ✅ Language ${currentLanguage} is correct, no change needed`);
         }
       } catch (error) {
-        console.error('🌐 ❌ Failed to verify language preference:', error);
       }
       
       if (isMounted) {
         setIsLoading(false);
-        console.log('🌐 ✅ Language initialization complete');
       }
     };
 
@@ -165,14 +152,19 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   // Save language preference when changed
   const setLanguage = (lang: SupportedLanguage) => {
     try {
-      console.log(`🌐 Language changing from ${currentLanguage} to ${lang}`);
       setCurrentLanguage(lang);
       localStorage.setItem('preferred-language', lang);
-      console.log(`✅ Language saved to localStorage: ${lang}`);
     } catch (error) {
-      console.error('❌ Failed to save language preference:', error);
       // Still update the current language even if storage fails
       setCurrentLanguage(lang);
+    }
+  };
+
+  // Function to set user language preference from auth (e.g., from JWT token)
+  const setUserLanguagePreference = (lang: SupportedLanguage) => {
+    if (['en', 'es', 'pt', 'sv'].includes(lang)) {
+      console.log('🔍 Setting user language preference from token:', lang);
+      setLanguage(lang);
     }
   };
 
@@ -188,15 +180,14 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
 
   // Translation function bound to current language
   const t = useCallback((key: string, vars?: TranslationVariables, count?: number): string => {
-    console.log(`🔍 Translation called: key="${key}", currentLanguage="${currentLanguage}"`);
     const result = translate(key, currentLanguage, vars, count);
-    console.log(`🔍 Translation result: "${result}"`);
     return result;
   }, [currentLanguage]);
 
   const value: LanguageContextType = {
     currentLanguage,
     setLanguage,
+    setUserLanguagePreference,
     t,
     isLoading
   };

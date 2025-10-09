@@ -67,6 +67,17 @@ const Admin = () => {
     }
   };
 
+  // Enhanced survey deletion handler with optimistic updates
+  const handleSurveyDeleted = (surveyId?: string) => {
+    if (surveyId) {
+      // Optimistically remove the survey from the local state immediately
+      setSurveys(prev => prev.filter(survey => survey.id !== surveyId));
+    }
+    
+    // Also refresh data from server as a backup (in case of inconsistencies)
+    fetchData();
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/auth');
@@ -165,7 +176,7 @@ const Admin = () => {
             <AdminSurveysManagement 
               surveys={surveys} 
               onSurveyAdded={fetchData} 
-              onSurveyDeleted={fetchData} 
+              onSurveyDeleted={handleSurveyDeleted} 
             />
           </TabsContent>
 

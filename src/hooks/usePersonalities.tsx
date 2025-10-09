@@ -78,7 +78,6 @@ export const usePersonalities = () => {
   };
 
   const loadUserPreferences = async (currentPersonalities: AIPersonality[] = personalities, forceRefresh: boolean = false) => {
-    console.log('=== loadUserPreferences called ===');
     
     try {
       const data = await deduplicatedRequest({
@@ -86,8 +85,6 @@ export const usePersonalities = () => {
         cacheDuration: forceRefresh ? 0 : CACHE_DURATION,
         request: async () => {
           const token = localStorage.getItem('authToken');
-          console.log('Token:', token ? 'exists' : 'missing');
-          console.log('Making request to: http://localhost:3000/api/users/me/preferred-personality');
           const response = await fetch('http://localhost:3000/api/users/me/preferred-personality', {
             headers: {
               'Authorization': `Bearer ${token}`,
