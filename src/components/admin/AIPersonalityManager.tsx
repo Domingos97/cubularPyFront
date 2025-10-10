@@ -239,7 +239,7 @@ export const AIPersonalityManager = () => {
               <div className="text-sm text-muted-foreground">
                 <p><strong>{t('admin.personalities.model')}:</strong> {personality.model_override || t('admin.personalities.default')}</p>
                 <p><strong>{t('admin.personalities.temperature')}:</strong> {personality.temperature_override || t('admin.personalities.default')}</p>
-                <p><strong>{t('admin.personalities.systemPrompt')}:</strong> {personality.system_prompt.substring(0, 100)}...</p>
+                <p><strong>{t('admin.personalities.detailedAnalysis')}:</strong> {personality.detailed_analysis_prompt?.substring(0, 100) || t('admin.personalities.default')}...</p>
               </div>
             </CardContent>
           </Card>

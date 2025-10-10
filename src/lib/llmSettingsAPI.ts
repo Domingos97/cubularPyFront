@@ -2,9 +2,6 @@ export interface LLMSettings {
   id?: string;
   provider: string;
   model: string;
-  temperature?: number;
-  max_tokens?: number;
-  max_completion_tokens?: number;
   active?: boolean;
   api_key?: string;
   created_at?: string;

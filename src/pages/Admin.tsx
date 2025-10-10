@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Database, Settings, BarChart3, Brain, Cog } from 'lucide-react';
+import { Users, Database, Settings, BarChart3, Brain, Cog, FileText, Crown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,8 @@ import { AIPersonalityManager } from '@/components/admin/AIPersonalityManager';
 import { AdminUsersManagement } from '@/components/admin/AdminUsersManagement';
 import { AdminSurveysManagement } from '@/components/admin/AdminSurveysManagement';
 import { ModelConfigurationPanel } from '@/components/admin/ModelConfigurationPanel';
+import AdminLogsManagement from '@/components/admin/AdminLogsManagement';
+import AdminPlansManagement from '@/components/admin/AdminPlansManagement';
 import { authenticatedApiRequest } from '@/utils/api';
 import { useTranslation } from '@/resources/i18n';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -130,7 +132,7 @@ const Admin = () => {
 
         {/* Admin Tabs */}
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-gray-800/80 border-gray-700">
+          <TabsList className="grid w-full grid-cols-8 bg-gray-800/80 border-gray-700">
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-gray-700">
               <BarChart3 className="w-4 h-4 mr-2" />
               {t('admin.tabs.dashboard')}
@@ -143,6 +145,10 @@ const Admin = () => {
               <Database className="w-4 h-4 mr-2" />
               {t('admin.tabs.surveys')}
             </TabsTrigger>
+            <TabsTrigger value="plans" className="data-[state=active]:bg-gray-700">
+              <Crown className="w-4 h-4 mr-2" />
+              {t('admin.tabs.plans')}
+            </TabsTrigger>
             <TabsTrigger value="ai-personalities" className="data-[state=active]:bg-gray-700">
               <Brain className="w-4 h-4 mr-2" />
               {t('admin.tabs.aiPersonalities')}
@@ -154,6 +160,10 @@ const Admin = () => {
             <TabsTrigger value="settings" className="data-[state=active]:bg-gray-700">
               <Settings className="w-4 h-4 mr-2" />
               {t('admin.tabs.settings')}
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="data-[state=active]:bg-gray-700">
+              <FileText className="w-4 h-4 mr-2" />
+              Logs
             </TabsTrigger>
           </TabsList>
 
@@ -180,6 +190,11 @@ const Admin = () => {
             />
           </TabsContent>
 
+          {/* Plans Management Tab */}
+          <TabsContent value="plans">
+            <AdminPlansManagement />
+          </TabsContent>
+
           {/* AI Personalities Management Tab */}
           <TabsContent value="ai-personalities">
             <AIPersonalityManager />
@@ -193,6 +208,11 @@ const Admin = () => {
           {/* Settings Tab */}
           <TabsContent value="settings">
             <AdminSettings />
+          </TabsContent>
+
+          {/* Logs Tab */}
+          <TabsContent value="logs">
+            <AdminLogsManagement />
           </TabsContent>
         </Tabs>
       </div>

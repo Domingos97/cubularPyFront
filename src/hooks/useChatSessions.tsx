@@ -119,6 +119,8 @@ export function useChatSessions() {
       }
       
       const session = await sessionRes.json();
+      console.log('🔍 useChatSessions: Loaded session data:', session);
+      console.log('🔍 useChatSessions: Session personality_id:', session.personality_id);
       
       const messagesRes = await authenticatedFetch(`/api/chat/sessions/${sessionId}/messages`);
       
@@ -196,6 +198,7 @@ export function useChatSessions() {
 
   const deleteSession = async (sessionId: string) => {
     try {
+      console.log('🗑️ Deleting session:', sessionId, 'Current session:', currentSession?.id);
       
       const response = await authenticatedFetch(`/api/chat/sessions/${sessionId}`, { 
         method: 'DELETE' 
@@ -206,14 +209,16 @@ export function useChatSessions() {
         throw new Error(errorData.error || `Failed to delete session: ${response.status}`);
       }
             
-      // Reload sessions to refresh the UI
-      await loadChatSessions();
-      
-      // If we deleted the currently active session, clear it
+      // If we deleted the currently active session, clear it first
       if (currentSession?.id === sessionId) {
+        console.log('🗑️ Clearing current session because it was deleted');
         setCurrentSession(null);
         setCurrentMessages([]);
       }
+      
+      // Reload sessions to refresh the UI
+      console.log('🗑️ Reloading chat sessions after deletion');
+      await loadChatSessions();
       
     } catch (error) {
       console.error('Error deleting session:', error);

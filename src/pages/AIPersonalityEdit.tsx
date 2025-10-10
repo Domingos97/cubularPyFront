@@ -19,10 +19,8 @@ const AIPersonalityEdit = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    system_prompt: '',
     suggestions_prompt: '',
-    model_override: '',
-    temperature_override: '',
+    detailed_analysis_prompt: '',
     is_active: true
   });
 
@@ -35,10 +33,8 @@ const AIPersonalityEdit = () => {
           setFormData({
             name: data.name || '',
             description: data.description || '',
-            system_prompt: data.system_prompt || '',
             suggestions_prompt: data.suggestions_prompt || '',
-            model_override: data.model_override || '',
-            temperature_override: data.temperature_override?.toString() || '',
+            detailed_analysis_prompt: data.detailed_analysis_prompt || '',
             is_active: data.is_active ?? true
           });
           setIsLoading(false);
@@ -50,8 +46,7 @@ const AIPersonalityEdit = () => {
   const handleSave = async () => {
     setIsLoading(true);
     const payload = {
-      ...formData,
-      temperature_override: formData.temperature_override ? parseFloat(formData.temperature_override) : null
+      ...formData
     };
     try {
       const url = id ? `http://localhost:3000/api/personalities/${id}` : 'http://localhost:3000/api/personalities';
@@ -98,25 +93,6 @@ const AIPersonalityEdit = () => {
                 <Switch id="is_active" checked={formData.is_active} onCheckedChange={checked => setFormData(f => ({ ...f, is_active: checked }))} />
                 <Label htmlFor="is_active" className="font-medium text-gray-300">{t('personality.active')}</Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="model_override" className="text-gray-300">{t('personality.model')}:</Label>
-                <Select value={formData.model_override || 'default'} onValueChange={value => setFormData(f => ({ ...f, model_override: value === 'default' ? '' : value }))}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                    <SelectValue placeholder="Select model (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-700 border-gray-600">
-                    <SelectItem value="default">Default</SelectItem>
-                    <SelectItem value="gpt-5-2025-08-07">GPT-5</SelectItem>
-                    <SelectItem value="gpt-5-mini-2025-08-07">GPT-5 Mini</SelectItem>
-                    <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1</SelectItem>
-                    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="temperature_override" className="text-gray-300">{t('personality.temperature')}:</Label>
-                <Input id="temperature_override" type="number" min="0" max="2" step="0.1" value={formData.temperature_override} onChange={e => setFormData(f => ({ ...f, temperature_override: e.target.value }))} placeholder="0.0 - 2.0" className="bg-gray-700 border-gray-600 text-white w-24" />
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -128,14 +104,14 @@ const AIPersonalityEdit = () => {
             <CardDescription className="text-gray-400">{t('personality.promptsDescription')}</CardDescription>
           </CardHeader>
           <CardContent className="px-8 pb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              <div className="space-y-2">
-                <Label htmlFor="system_prompt" className="text-gray-300">{t('personality.systemPrompt')}</Label>
-                <Textarea id="system_prompt" value={formData.system_prompt} onChange={e => setFormData(f => ({ ...f, system_prompt: e.target.value }))} rows={18} className="bg-gray-700 border-gray-600 text-white min-h-[350px] text-base w-full" placeholder={t('personality.systemPromptPlaceholder')} />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               <div className="space-y-2">
                 <Label htmlFor="suggestions_prompt" className="text-gray-300">{t('personality.suggestions')}</Label>
                 <Textarea id="suggestions_prompt" value={formData.suggestions_prompt} onChange={e => setFormData(f => ({ ...f, suggestions_prompt: e.target.value }))} rows={18} className="bg-gray-700 border-gray-600 text-white min-h-[350px] text-base w-full" placeholder={t('personality.suggestionsPlaceholder')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="detailed_analysis_prompt" className="text-gray-300">{t('personality.detailedAnalysis')}</Label>
+                <Textarea id="detailed_analysis_prompt" value={formData.detailed_analysis_prompt} onChange={e => setFormData(f => ({ ...f, detailed_analysis_prompt: e.target.value }))} rows={18} className="bg-gray-700 border-gray-600 text-white min-h-[350px] text-base w-full" placeholder={t('personality.detailedAnalysisPlaceholder')} />
               </div>
             </div>
           </CardContent>

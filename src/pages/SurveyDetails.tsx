@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import EditableDataTable from '@/components/survey/EditableDataTable';
 import { MultiFileDataTable } from '@/components/survey/MultiFileDataTable';
 import { AddFileUpload } from '@/components/admin/AddFileUpload';
 import * as XLSX from 'xlsx';
@@ -46,7 +45,6 @@ const SurveyDetails = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [survey, setSurvey] = useState<Survey | null>(null);
-  const [surveyData, setSurveyData] = useState<ParsedSurveyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditingCategory, setIsEditingCategory] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -74,6 +72,85 @@ const SurveyDetails = () => {
   const [isLoadingFileData, setIsLoadingFileData] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<Record<string, boolean>>({});
 
+  // Utility function to check if there are any unsaved changes
+  const hasAnyUnsavedChanges = () => {
+    return Object.values(hasUnsavedChanges).some(hasChanges => hasChanges);
+  };
+
+  // Handle beforeunload event to warn about page refresh/close
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasAnyUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return 'You have unsaved changes. Are you sure you want to leave?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (hasAnyUnsavedChanges()) {
+        const proceed = window.confirm(
+          'You have unsaved changes. Are you sure you want to leave this page?'
+        );
+        if (!proceed) {
+          // Push the current state back to prevent navigation
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+
+    // Push a state to detect back button
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [hasUnsavedChanges]);
+
+  // Custom navigation warning using navigate override
+  const originalNavigate = navigate;
+  
+  // Override navigate function to check for unsaved changes
+  const safeNavigate = (to: any, options?: any) => {
+    if (hasAnyUnsavedChanges()) {
+      const proceed = window.confirm(
+        'You have unsaved changes. Are you sure you want to leave this page?'
+      );
+      if (proceed) {
+        originalNavigate(to, options);
+      }
+    } else {
+      originalNavigate(to, options);
+    }
+  };
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S or Cmd+S to save changes
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (hasAnyUnsavedChanges()) {
+          if (selectedFileId && hasUnsavedChanges[selectedFileId]) {
+            handleSaveChanges(selectedFileId);
+          } else {
+            handleSaveAllChanges();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasUnsavedChanges, selectedFileId]);
+
   useEffect(() => {
     if (surveyId) {
       fetchSurveyDetails();
@@ -82,54 +159,27 @@ const SurveyDetails = () => {
   }, [surveyId]);
 
   useEffect(() => {
-    if (survey && (survey.id || survey.fileid)) {
-      // For new surveys, we need to fetch the first file's data
-      // For legacy surveys, use fileid as before
-      const surveyIdToUse = survey.id || survey.fileid;
-      const filenameToUse = survey.title || survey.filename || 'survey-data';
-      fetchSurveyRows(surveyIdToUse, filenameToUse);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Modern surveys only use multi-file approach
+    // Data is loaded via handleFileSelection when files are available
   }, [survey]);
 
   // Auto-select first file when files are loaded
   useEffect(() => {
     if (surveyFiles.length > 0 && !selectedFileId) {
       handleFileSelection(surveyFiles[0].id);
-    } else if (surveyFiles.length === 0 && survey && (survey.id || survey.fileid) && surveyData) {
-      // For legacy surveys without separate files, show the existing data
-      // This maintains backward compatibility
     }
-  }, [surveyFiles, selectedFileId, survey, surveyData]);
+  }, [surveyFiles, selectedFileId]);
 
   const fetchSurveyDetails = async () => {
     try {
-      // Try to get survey with files first (new API)
-      let response = await fetch(`http://localhost:3000/api/surveys/${surveyId}/with-files`);
-      let data;
+      // Get survey with files (modern API only)
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}/with-files`);
       
-      if (response.ok) {
-        // New API successful
-        data = await response.json();
-      } else if (response.status === 404) {
-        // Fallback to legacy API
-        response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`);
-        if (!response.ok) throw new Error('Failed to fetch survey details');
-        data = await response.json();
-        
-        // Transform legacy data to new format for compatibility
-        data = {
-          ...data,
-          id: data.fileid || data.id,
-          title: data.filename || data.title,
-          created_at: data.createdat || data.created_at,
-          total_files: 1, // Legacy surveys typically have 1 file
-          files: [], // Legacy surveys don't have separate files
-        };
-      } else {
+      if (!response.ok) {
         throw new Error('Failed to fetch survey details');
       }
       
+      const data = await response.json();
       setSurvey(data);
       setEditCategoryValue(data.category || 'none');
       setEditDescriptionValue(data.description || '');
@@ -184,16 +234,22 @@ const SurveyDetails = () => {
     if (!window.confirm(t('survey.deleteConfirmation'))) return;
     setDeleting(true);
     try {
-      const surveyId = survey.id || survey.fileid;
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const surveyId = survey.id;
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete survey');
+      
+      // Clear unsaved changes since we're deleting the survey
+      setHasUnsavedChanges({});
+      
       toast({
         title: t('survey.deleted'),
         description: t('survey.deleteSuccess'),
       });
-      navigate('/admin');
+      
+      // Use original navigate to bypass unsaved changes warning
+      originalNavigate('/admin');
     } catch (error) {
       console.error('Error deleting survey:', error);
       toast({
@@ -231,7 +287,7 @@ const SurveyDetails = () => {
     // Fetch data for the selected file
     setIsLoadingFileData(true);
     try {
-      const response = await fetch(`http://localhost:3000/api/surveys/${survey?.id || survey?.fileid}/files/${fileId}/rows`);
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${survey?.id}/files/${fileId}/rows`);
       if (!response.ok) {
         throw new Error('Failed to fetch file data');
       }
@@ -302,7 +358,7 @@ const SurveyDetails = () => {
         ).join(','))
       ].join('\n');
 
-      const response = await fetch(`http://localhost:3000/api/surveys/${survey?.id || survey?.fileid}/files/${fileId}/update`, {
+      const response = await fetch(`http://localhost:3000/api/surveys/${survey?.id}/files/${fileId}/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'text/csv',
@@ -330,6 +386,34 @@ const SurveyDetails = () => {
       toast({
         title: 'Error',
         description: 'Failed to save changes. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveAllChanges = async () => {
+    const filesToSave = Object.keys(hasUnsavedChanges).filter(fileId => hasUnsavedChanges[fileId]);
+    
+    if (filesToSave.length === 0) {
+      toast({
+        title: 'Info',
+        description: 'No unsaved changes to save',
+      });
+      return;
+    }
+
+    const savePromises = filesToSave.map(fileId => handleSaveChanges(fileId));
+    
+    try {
+      await Promise.all(savePromises);
+      toast({
+        title: 'Success',
+        description: `Saved changes for ${filesToSave.length} file(s)`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Some files failed to save. Please try again.',
         variant: 'destructive',
       });
     }
@@ -433,88 +517,134 @@ const SurveyDetails = () => {
   };
 
 
-  // Fetch parsed survey rows from backend
-  const fetchSurveyRows = async (surveyId: string, surveyName: string) => {
-    try {
-      // For new surveys, try to get data from first file
-      // For legacy surveys, use the existing endpoint
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}/rows`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch survey rows');
-      }
-      const data = await response.json();
-      
-      // Handle the new backend format
-      if (!data.headers || !data.rows) {
-        setSurveyData({ headers: [], rows: [], totalResponses: 0 });
-        return;
-      }
-      
-      // Clean and validate the data
-      const cleanHeaders = data.headers.map((header: any) => 
-        String(header || '').trim().replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-      );
-      
-      const cleanRows = data.rows.map((row: any[]) => 
-        row.map((cell: any) => {
-          let cleanCell = String(cell || '').trim();
-          // Remove control characters and fix encoding issues
-          cleanCell = cleanCell.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-          // Fix common encoding issues
-          cleanCell = cleanCell.replace(/â€™/g, "'").replace(/â€œ/g, '"').replace(/â€/g, '"');
-          return cleanCell;
-        })
-      );
-      
-      setSurveyData({
-        headers: cleanHeaders,
-        rows: cleanRows,
-        totalResponses: cleanRows.length
-      });
-    } catch (error) {
-      console.error('Error fetching survey rows:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load survey data rows',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const handleExportData = async () => {
-    if (!survey || !survey.storage_path) return;
+    if (!survey) return;
 
     try {
-
-      // Fetch survey data from backend
-      const surveyId = survey.id || survey.fileid;
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch survey data');
+      // Check if we have file data loaded
+      if (Object.keys(fileDataMap).length === 0) {
+        // Try to load data from survey files if available
+        if (surveyFiles.length > 0) {
+          toast({
+            title: 'Loading Data',
+            description: 'Loading survey data for export...',
+          });
+          
+          // Load data for the first file if none is selected
+          const fileToLoad = selectedFileId || surveyFiles[0].id;
+          await handleFileSelection(fileToLoad);
+          
+          // Check again after loading
+          if (Object.keys(fileDataMap).length === 0) {
+            toast({
+              title: t('survey.error'),
+              description: 'Failed to load survey data for export.',
+              variant: "destructive",
+            });
+            return;
+          }
+        } else {
+          toast({
+            title: t('survey.error'),
+            description: 'No survey data available to export. Please upload a file first.',
+            variant: "destructive",
+          });
+          return;
+        }
       }
-      const data = await response.json();
 
+      // Export all files or the currently selected file
+      if (selectedFileId && fileDataMap[selectedFileId]) {
+        // Export single file
+        const fileData = fileDataMap[selectedFileId];
+        const csvContent = [
+          fileData.headers.join(','),
+          ...fileData.rows.map(row => row.map(cell => 
+            // Escape cells that contain commas, quotes, or newlines
+            cell.includes(',') || cell.includes('"') || cell.includes('\n') 
+              ? `"${cell.replace(/"/g, '""')}"` 
+              : cell
+          ).join(','))
+        ].join('\n');
 
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Find the filename for the selected file
+        const selectedFile = surveyFiles.find(f => f.id === selectedFileId);
+        const filename = selectedFile?.filename || `${survey.title || 'survey-data'}.csv`;
+        a.download = filename;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-      const blob = new Blob([data], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${survey.title || survey.filename || 'survey-data'}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        toast({
+          title: t('survey.success'),
+          description: `Exported ${filename}`,
+        });
+      } else {
+        // Export all files as a ZIP or combined CSV
+        const allCsvData = Object.entries(fileDataMap).map(([fileId, data]) => {
+          const fileName = surveyFiles.find(f => f.id === fileId)?.filename || `file-${fileId}.csv`;
+          const csvContent = [
+            data.headers.join(','),
+            ...data.rows.map(row => row.map(cell => 
+              cell.includes(',') || cell.includes('"') || cell.includes('\n') 
+                ? `"${cell.replace(/"/g, '""')}"` 
+                : cell
+            ).join(','))
+          ].join('\n');
+          return { fileName, csvContent };
+        });
 
-      toast({
-        title: t('survey.success'),
-        description: t('survey.exportSuccess'),
-      });
+        if (allCsvData.length === 1) {
+          // Single file export
+          const { fileName, csvContent } = allCsvData[0];
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          toast({
+            title: t('survey.success'),
+            description: `Exported ${fileName}`,
+          });
+        } else {
+          // Multiple files - create a combined export
+          const combinedContent = allCsvData.map(({ fileName, csvContent }) => 
+            `# File: ${fileName}\n${csvContent}`
+          ).join('\n\n');
+
+          const blob = new Blob([combinedContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${survey.title || 'survey-data'}-combined.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          toast({
+            title: t('survey.success'),
+            description: `Exported ${allCsvData.length} files as combined CSV`,
+          });
+        }
+      }
     } catch (error) {
       console.error('Error exporting data:', error);
       toast({
         title: t('survey.error'),
-        description: t('survey.exportError'),
+        description: t('survey.exportError') || 'Failed to export data',
         variant: "destructive",
       });
     }
@@ -523,8 +653,8 @@ const SurveyDetails = () => {
   const handleSaveCategory = async () => {
     if (!survey) return;
     try {
-      const surveyId = survey.id || survey.fileid;
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const surveyId = survey.id;
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: editCategoryValue === 'none' ? null : editCategoryValue }),
@@ -550,8 +680,8 @@ const SurveyDetails = () => {
   const handleSaveDescription = async () => {
     if (!survey) return;
     try {
-      const surveyId = survey.id || survey.fileid;
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const surveyId = survey.id;
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: editDescriptionValue || null }),
@@ -587,8 +717,8 @@ const SurveyDetails = () => {
   const handleSaveSuggestions = async () => {
     if (!survey) return;
     try {
-      const surveyId = survey.id || survey.fileid;
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const surveyId = survey.id;
+      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ai_suggestions: editSuggestionsValue }),
@@ -640,8 +770,8 @@ const SurveyDetails = () => {
       if (!survey) throw new Error('No survey loaded');
       if (!selectedPersonalityId) throw new Error('Please select an AI personality');
       
-      // Use the proper survey ID (id is primary, fileid is for backward compatibility)
-      const surveyId = survey.id || survey.fileid;
+      // Use the survey ID
+      const surveyId = survey.id;
       if (!surveyId) throw new Error('Survey ID not available');
       
       // Call the backend to generate new suggestions (replaces existing ones)
@@ -668,7 +798,7 @@ const SurveyDetails = () => {
         
         // Refresh survey details from backend to ensure consistency with saved data
         try {
-          const refreshResponse = await fetch(`http://localhost:3000/api/surveys/${surveyId}`);
+          const refreshResponse = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`);
           if (refreshResponse.ok) {
             const refreshedSurvey = await refreshResponse.json();
             setSurvey(refreshedSurvey);
@@ -728,7 +858,7 @@ const SurveyDetails = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white mb-4">{t('survey.notFound')}</h1>
-            <Button onClick={() => navigate('/admin')} variant="outline">
+            <Button onClick={() => safeNavigate('/admin')} variant="outline">
               <ArrowLeft className="w-4 h-4 mr-2" />
               {t('survey.backToAdmin')}
             </Button>
@@ -755,6 +885,30 @@ const SurveyDetails = () => {
           </Button>
         }
       />
+      
+      {/* Global Unsaved Changes Warning */}
+      {hasAnyUnsavedChanges() && (
+        <div className="container mx-auto px-4">
+          <div className="bg-amber-900/30 border border-amber-500/50 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></div>
+              <div className="flex-1">
+                <p className="text-amber-300 font-medium">Unsaved Changes Detected</p>
+                <p className="text-amber-200/80 text-sm">
+                  You have unsaved changes in your survey data. Don't forget to save before leaving this page.
+                </p>
+              </div>
+              <Button
+                onClick={handleSaveAllChanges}
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Save All Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="container mx-auto px-4 py-8 space-y-6">
 
@@ -784,7 +938,9 @@ const SurveyDetails = () => {
                 <Users className="w-8 h-8 text-purple-400" />
                 <div>
                   <p className="text-sm text-white/70">Total Responses</p>
-                  <p className="font-semibold text-white">{surveyData?.totalResponses || 0}</p>
+                  <p className="font-semibold text-white">
+                    {selectedFileId && fileDataMap[selectedFileId] ? fileDataMap[selectedFileId].totalResponses : 0}
+                  </p>
                 </div>
               </div>
               
@@ -792,7 +948,9 @@ const SurveyDetails = () => {
                 <BarChart3 className="w-8 h-8 text-orange-400" />
                 <div>
                   <p className="text-sm text-white/70">Data Fields</p>
-                  <p className="font-semibold text-white">{surveyData?.headers.length || 0}</p>
+                  <p className="font-semibold text-white">
+                    {selectedFileId && fileDataMap[selectedFileId] ? fileDataMap[selectedFileId].headers.length : 0}
+                  </p>
                 </div>
               </div>
               
@@ -1110,7 +1268,7 @@ const SurveyDetails = () => {
           <Dialog open={showAddFiles} onOpenChange={setShowAddFiles}>
             <DialogContent className="max-w-md bg-transparent border-none p-0 shadow-none">
               <AddFileUpload 
-                surveyId={survey?.id || survey?.fileid || ''}
+                surveyId={survey?.id || ''}
                 onFileAdded={handleFileAdded}
                 onClose={() => setShowAddFiles(false)}
               />
@@ -1120,122 +1278,110 @@ const SurveyDetails = () => {
 
         {/* Survey Data */}
         <GlassCard title="Survey Data">
-          {surveyFiles.length > 0 ? (
-            <div className="space-y-4">
-              {/* Save Changes Button */}
-              {selectedFileId && fileDataMap[selectedFileId] && (
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    {hasUnsavedChanges[selectedFileId] && (
-                      <div className="flex items-center gap-2 text-amber-400 text-sm">
-                        <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-                        <span>Unsaved changes</span>
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    onClick={() => handleSaveChanges(selectedFileId)}
-                    className={hasUnsavedChanges[selectedFileId] ? "bg-green-600 hover:bg-green-700" : "bg-gray-600 hover:bg-gray-700"}
-                    size="sm"
-                    disabled={!hasUnsavedChanges[selectedFileId]}
-                  >
-                    {hasUnsavedChanges[selectedFileId] ? 'Save Changes' : 'No Changes'}
-                  </Button>
-                </div>
-              )}
-
-              {/* File Selector */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <Label className="text-gray-300 text-sm">Select File</Label>
-                    <Select value={selectedFileId || ''} onValueChange={handleFileSelection}>
-                      <SelectTrigger className="w-80 bg-gray-700 border-gray-600 text-white">
-                        <SelectValue placeholder="Choose a file to view data" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-800 border-gray-600">
-                        {surveyFiles.map((file) => {
-                          const fileData = fileDataMap[file.id];
-                          const participantCount = fileData ? getUniqueParticipantCount(fileData) : 0;
-                          const responseCount = fileData ? fileData.totalResponses : 0;
-                          
-                          return (
-                            <SelectItem key={file.id} value={file.id} className="text-white hover:bg-gray-700">
-                              {file.filename} - {participantCount} participants, {responseCount} responses ({formatFileSize(file.file_size || 0)})
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {selectedFileId && fileDataMap[selectedFileId] && (
-                    <div className="text-sm text-gray-400">
-                      {fileDataMap[selectedFileId].totalResponses} responses • {getUniqueParticipantCount(fileDataMap[selectedFileId])} participants
+          <div className="space-y-4">
+            {/* Save Changes Button */}
+            {selectedFileId && fileDataMap[selectedFileId] && (
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  {hasUnsavedChanges[selectedFileId] && (
+                    <div className="flex items-center gap-2 text-amber-400 text-sm">
+                      <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                      <span>Unsaved changes</span>
                     </div>
                   )}
                 </div>
+                <Button
+                  onClick={() => handleSaveChanges(selectedFileId)}
+                  className={hasUnsavedChanges[selectedFileId] ? "bg-green-600 hover:bg-green-700" : "bg-gray-600 hover:bg-gray-700"}
+                  size="sm"
+                  disabled={!hasUnsavedChanges[selectedFileId]}
+                >
+                  {hasUnsavedChanges[selectedFileId] ? 'Save Changes' : 'No Changes'}
+                </Button>
               </div>
+            )}
 
-              {/* Data Display */}
-              {isLoadingFileData ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-300">Loading file data...</span>
+            {/* File Selector */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div>
+                  <Label className="text-gray-300 text-sm">Select File</Label>
+                  <Select value={selectedFileId || ''} onValueChange={handleFileSelection}>
+                    <SelectTrigger className="w-80 bg-gray-700 border-gray-600 text-white">
+                      <SelectValue placeholder="Choose a file to view data" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-800 border-gray-600">
+                      {surveyFiles.map((file) => {
+                        const fileData = fileDataMap[file.id];
+                        const participantCount = fileData ? getUniqueParticipantCount(fileData) : 0;
+                        const responseCount = fileData ? fileData.totalResponses : 0;
+                        
+                        return (
+                          <SelectItem key={file.id} value={file.id} className="text-white hover:bg-gray-700">
+                            {file.filename} - {participantCount} participants, {responseCount} responses ({formatFileSize(file.file_size || 0)})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : selectedFileId && fileDataMap[selectedFileId] ? (
-                <MultiFileDataTable
-                  data={fileDataMap[selectedFileId]}
-                  currentPage={currentPage}
-                  itemsPerPage={itemsPerPage}
-                  onPageChange={setCurrentPage}
-                  onDataChange={(newRows) => {
-                    setFileDataMap(prev => ({
-                      ...prev,
-                      [selectedFileId]: {
-                        ...prev[selectedFileId],
-                        rows: newRows,
-                        totalResponses: newRows.length
-                      }
-                    }));
-                    setHasUnsavedChanges(prev => ({
-                      ...prev,
-                      [selectedFileId]: true
-                    }));
-                  }}
-                />
-              ) : selectedFileId ? (
-                <div className="text-center py-8">
-                  <p className="text-white/70">Failed to load file data</p>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-600 rounded-lg">
-                  <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                  <p className="text-lg font-medium">Select a file to view data</p>
-                  <p className="text-sm">Choose a file from the dropdown above to see its data</p>
-                </div>
-              )}
-            </div>
-          ) : surveyData && surveyData.headers.length > 0 ? (
-            <div className="space-y-4">
-              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-                <p className="text-blue-300 text-sm">
-                  <strong>Legacy Survey:</strong> This survey uses the old format. Data is shown from the main survey file.
-                </p>
+                {selectedFileId && fileDataMap[selectedFileId] && (
+                  <div className="text-sm text-gray-400">
+                    {fileDataMap[selectedFileId].totalResponses} responses • {getUniqueParticipantCount(fileDataMap[selectedFileId])} participants
+                  </div>
+                )}
               </div>
-              <EditableDataTable
-                headers={surveyData.headers}
-                rows={surveyData.rows}
-                totalResponses={surveyData.totalResponses}
-                onDataChange={(newRows) => {
-                  setSurveyData(prev => prev ? { ...prev, rows: newRows, totalResponses: newRows.length } : null);
-                }}
-              />
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-white/70">No survey data available</p>
-            </div>
-          )}
+
+            {/* Data Display */}
+            {surveyFiles.length > 0 ? (
+              <>
+                {isLoadingFileData ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-gray-300">Loading file data...</span>
+                  </div>
+                ) : selectedFileId && fileDataMap[selectedFileId] ? (
+                  <MultiFileDataTable
+                    data={fileDataMap[selectedFileId]}
+                    currentPage={currentPage}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    onDataChange={(newRows) => {
+                      setFileDataMap(prev => ({
+                        ...prev,
+                        [selectedFileId]: {
+                          ...prev[selectedFileId],
+                          rows: newRows,
+                          totalResponses: newRows.length
+                        }
+                      }));
+                      setHasUnsavedChanges(prev => ({
+                        ...prev,
+                        [selectedFileId]: true
+                      }));
+                    }}
+                  />
+                ) : selectedFileId ? (
+                  <div className="text-center py-8">
+                    <p className="text-white/70">Failed to load file data</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-600 rounded-lg">
+                    <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                    <p className="text-lg font-medium">Select a file to view data</p>
+                    <p className="text-sm">Choose a file from the dropdown above to see its data</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-600 rounded-lg">
+                <FileText className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                <p className="text-lg font-medium">No files uploaded yet</p>
+                <p className="text-sm">Add files to this survey to start analyzing data</p>
+              </div>
+            )}
+          </div>
         </GlassCard>
 
 

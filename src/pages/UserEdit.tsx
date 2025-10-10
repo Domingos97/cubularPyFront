@@ -42,6 +42,12 @@ interface UserPlan {
   status: string;
   start_date: string;
   end_date?: string;
+  trial_ends_at?: string;
+  auto_renew: boolean;
+  payment_method_id?: string;
+  stripe_subscription_id?: string;
+  created_at: string;
+  updated_at: string;
   plans: {
     id: string;
     name: string;
@@ -131,13 +137,9 @@ export const UserEdit = () => {
   const fetchUser = async () => {
     try {
       setIsLoading(true);
-      const users = await authenticatedApiRequest<UserWithAccess[]>(`http://localhost:3000/api/admin/access/users`);
-      const foundUser = users.find((u: UserWithAccess) => u.id === userId);
-      if (foundUser) {
-        setUser(foundUser);
-      } else {
-        throw new Error('User not found');
-      }
+      const userData = await authenticatedApiRequest<UserWithAccess>(`http://localhost:3000/api/users/${userId}`);
+      console.log('Fetched updated user data:', userData);
+      setUser(userData);
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({
@@ -655,7 +657,12 @@ export const UserEdit = () => {
 
               {/* Plan & Usage Tab */}
               <TabsContent value="plan">
-                <PlanUsageManager user={user} />
+                <PlanUsageManager 
+                  key={`plan-manager-${user.id}-${user.user_plans?.length || 0}`}
+                  user={user} 
+                  isAdmin={currentUser?.role === 'admin'} 
+                  onUserUpdate={fetchUser}
+                />
               </TabsContent>
 
               {/* Requests Tab */}

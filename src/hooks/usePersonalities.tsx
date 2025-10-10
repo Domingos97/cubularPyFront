@@ -6,7 +6,7 @@ export interface AIPersonality {
   id: string;
   name: string;
   description: string;
-  system_prompt: string;
+  detailed_analysis_prompt: string;
   suggestions_prompt: string;
   model_override?: string;
   temperature_override?: number;
@@ -176,7 +176,7 @@ export const usePersonalities = () => {
     if (!personality) return null;
 
     return {
-      system_prompt: personality.system_prompt,
+      detailed_analysis_prompt: personality.detailed_analysis_prompt,
       suggestions_prompt: personality.suggestions_prompt,
       model_override: personality.model_override,
       temperature_override: personality.temperature_override

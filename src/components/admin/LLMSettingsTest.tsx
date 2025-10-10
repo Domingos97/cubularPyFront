@@ -34,10 +34,8 @@ export const LLMSettingsTest = () => {
     try {
       const testData: Omit<LLMSettings, 'id' | 'created_at' | 'updated_at' | 'created_by'> = {
         provider: 'openai',
-        model: 'gpt-4o-mini',
-        temperature: 0.7,
-        max_tokens: 1000,
-        max_completion_tokens: 500      };
+        model: 'gpt-4o-mini'
+      };
 
       const savedSettings = await llmSettingsAPI.upsertLLMSetting(testData);
       setSettings(savedSettings);

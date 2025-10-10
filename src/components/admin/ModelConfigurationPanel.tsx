@@ -42,7 +42,7 @@ interface ModuleConfiguration {
   }; // model field removed from llm_settings
   ai_personality?: {
     name: string;
-    system_prompt: string;
+    detailed_analysis_prompt: string;
   };
 }
 
@@ -713,6 +713,19 @@ export const ModelConfigurationPanel = () => {
                       />
                     </div>
 
+                    {/* Max Completion Tokens */}
+                    <div className="space-y-2">
+                      <Label className="text-gray-300">{t('admin.aiModels.maxCompletionTokens')}</Label>
+                      <Input
+                        type="number"
+                        value={getCurrentModuleConfig(module.name).max_completion_tokens || 500}
+                        onChange={(e) => updateFormData(module.name, 'max_completion_tokens', parseInt(e.target.value))}
+                        className="bg-gray-700 border-gray-600 text-white"
+                        min={1}
+                        max={8000}
+                      />
+                    </div>
+
                     {/* Active Status */}
                     <div className="flex items-center space-x-3 md:col-span-2">
                       <Switch
@@ -770,7 +783,7 @@ export const ModelConfigurationPanel = () => {
                               <strong>{t('admin.aiModels.selectedPersonality')}:</strong> {personalities.find(p => p.id === getCurrentModuleConfig(module.name).ai_personality_id)?.name}
                             </div>
                             <div className="text-xs text-gray-400 mt-1">
-                              {personalities.find(p => p.id === getCurrentModuleConfig(module.name).ai_personality_id)?.system_prompt?.substring(0, 100)}...
+                              {personalities.find(p => p.id === getCurrentModuleConfig(module.name).ai_personality_id)?.detailed_analysis_prompt?.substring(0, 100)}...
                             </div>
                           </div>
                         )}

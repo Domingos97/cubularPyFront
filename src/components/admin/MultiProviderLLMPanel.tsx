@@ -224,9 +224,6 @@ export const MultiProviderLLMPanel = () => {
         configsMap[provider] = {
           provider,
           model: providerInfo.models[0]?.id || '',
-          temperature: 0.7,
-          max_tokens: 1000,
-          max_completion_tokens: 500,
           api_key: '',
           active: false,
           isConfigured: false,
@@ -320,9 +317,6 @@ export const MultiProviderLLMPanel = () => {
       // Only send provider-level settings (no model field)
       const settingsToSave: any = {
         provider: config.provider,
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-        max_completion_tokens: config.max_completion_tokens,
         active: config.active || false
       };
 
@@ -409,9 +403,6 @@ export const MultiProviderLLMPanel = () => {
       const providerInfo = MODEL_PROVIDERS[provider as keyof typeof MODEL_PROVIDERS];
       updateConfig(provider, {
         model: providerInfo.models[0]?.id || '',
-        temperature: 0.7,
-        max_tokens: 1000,
-        max_completion_tokens: 500,
         api_key: '',
         isConfigured: false,
         showApiKey: false,
@@ -435,7 +426,6 @@ export const MultiProviderLLMPanel = () => {
   const renderProviderConfig = (provider: string) => {
     const config = configs[provider];
     const providerInfo = MODEL_PROVIDERS[provider as keyof typeof MODEL_PROVIDERS];
-    const supportsTemperature = true; // Always show temperature controls
 
     if (!config) return null;
 
@@ -542,63 +532,6 @@ export const MultiProviderLLMPanel = () => {
           </div>
           <div className="text-xs text-gray-400">
             {t('admin.llmSettings.activeProviderDescription')}
-          </div>
-        </div>
-
-        {/* Temperature (only for models that support it) */}
-        {supportsTemperature && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-gray-300">{t('admin.llmSettings.temperature')}</Label>
-              <span className="text-gray-400 text-sm">{config.temperature}</span>
-            </div>
-            <Slider
-              value={[config.temperature || 0.7]}
-              onValueChange={([value]) => updateConfig(provider, { temperature: value })}
-              max={1}
-              min={0}
-              step={0.1}
-              className="w-full"
-            />
-            <div className="text-xs text-gray-400">
-              {t('admin.llmSettings.temperatureDescription')}
-            </div>
-          </div>
-        )}
-
-        {/* Max Tokens */}
-        <div className="space-y-2">
-          <Label className="text-gray-300">
-            {t('admin.llmSettings.maxTokens')}
-          </Label>
-          <Input
-            type="number"
-            min="1"
-            max="32000"
-            value={config.max_tokens || ''}
-            onChange={(e) => updateConfig(provider, { max_tokens: parseInt(e.target.value) || undefined })}
-            className="bg-gray-700 border-gray-600 text-white"
-            placeholder="1000"
-          />
-          <div className="text-xs text-gray-400">
-            {t('admin.llmSettings.maxTokensDescription')}
-          </div>
-        </div>
-
-        {/* Max Completion Tokens */}
-        <div className="space-y-2">
-          <Label className="text-gray-300">{t('admin.llmSettings.maxCompletionTokens')}</Label>
-          <Input
-            type="number"
-            min="1"
-            max="8000"
-            value={config.max_completion_tokens || ''}
-            onChange={(e) => updateConfig(provider, { max_completion_tokens: parseInt(e.target.value) || undefined })}
-            className="bg-gray-700 border-gray-600 text-white"
-            placeholder="500"
-          />
-          <div className="text-xs text-gray-400">
-            {t('admin.llmSettings.maxCompletionTokensDescription')}
           </div>
         </div>
 

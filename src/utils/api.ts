@@ -314,3 +314,23 @@ export const deletePromptTranslation = async (translationId: string): Promise<vo
     throw new Error(`Failed to delete prompt translation: ${response.status}`);
   }
 };
+
+/**
+ * Update user profile
+ */
+export const updateUserProfile = async (profileData: { username?: string; email?: string; [key: string]: any }): Promise<any> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/users/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(profileData)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Failed to update profile: ${response.status}`);
+  }
+  
+  return response.json();
+};

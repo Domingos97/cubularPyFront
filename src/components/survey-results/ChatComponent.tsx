@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -30,13 +30,15 @@ interface ChatComponentProps {
   selectedPersonalityId: string | null;
   onSurveyChange: (survey: Survey) => void;
   onPersonalityChange?: (personalityId: string) => void;
+  onOpenNewChatModal?: () => void;
 }
 
 export const ChatComponent: React.FC<ChatComponentProps> = ({
   selectedSurvey,
   selectedPersonalityId,
   onSurveyChange,
-  onPersonalityChange
+  onPersonalityChange,
+  onOpenNewChatModal
 }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -48,9 +50,12 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [showDataInline, setShowDataInline] = useState<boolean>(false); // false = panel mode, true = inline mode
 
+  // Use ref to track personality updates and prevent loops
+  const lastSessionPersonalityRef = useRef<string | null>(null);
+
   const isMobile = useIsMobile();
   const { t } = useTranslation();
-  const { currentSession, currentMessages, setCurrentMessages, saveMessage, loadSession, createNewSession, isLoadingSession, loadChatSessions, clearCurrentSession } = useChatSessions();
+  const { chatSessions, currentSession, currentMessages, setCurrentMessages, saveMessage, loadSession, createNewSession, isLoadingSession, loadChatSessions, clearCurrentSession } = useChatSessions();
 
   // Load suggestions when component mounts or survey changes (GET request)
   useEffect(() => {
@@ -124,6 +129,27 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   useEffect(() => {
     setSelectedMessage(null);
   }, [currentSession?.id]);
+
+  // Update personality when session changes (e.g., when loading from URL)
+  useEffect(() => {
+    if (currentSession?.personality_id && 
+        currentSession.personality_id !== selectedPersonalityId &&
+        currentSession.personality_id !== lastSessionPersonalityRef.current) {
+      console.log('ChatComponent: Updating personality from session:', currentSession.personality_id, 'Previous:', selectedPersonalityId);
+      lastSessionPersonalityRef.current = currentSession.personality_id;
+      onPersonalityChange?.(currentSession.personality_id);
+    }
+  }, [currentSession?.personality_id, selectedPersonalityId]); // Remove onPersonalityChange from dependencies
+
+  // Handle session deletion - clear UI state when session becomes null
+  useEffect(() => {
+    if (!currentSession) {
+      setMessages([]);
+      setSelectedMessage(null);
+      setSelectedFiles([]);
+      console.log('ChatComponent: Session cleared, resetting UI state');
+    }
+  }, [currentSession]);
 
   // Clear selected message when switching to inline mode
   useEffect(() => {
@@ -397,22 +423,36 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
             <div className="flex flex-col items-center justify-center h-full space-y-6">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-white mb-2">
-                  No chats yet for this survey
+                  {chatSessions.length === 0 
+                    ? (selectedSurvey 
+                        ? `No chats yet for this survey`
+                        : `No chat sessions found`)
+                    : `Select a chat to continue`
+                  }
                 </h3>
                 <p className="text-gray-400 mb-6">
-                  Start your first conversation to analyze "{selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id}"
+                  {chatSessions.length === 0 
+                    ? (selectedSurvey 
+                        ? `Start your first conversation to analyze "${selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id}"`
+                        : `Create a new chat session to get started with AI-powered survey analysis`)
+                    : `Choose a chat session from the sidebar or create a new one`
+                  }
                 </p>
                 <Button
                   variant="default"
                   onClick={() => {
-                    // Trigger the new chat modal from the parent
-                    const event = new CustomEvent('openNewChatModal');
-                    window.dispatchEvent(event);
+                    if (onOpenNewChatModal) {
+                      onOpenNewChatModal();
+                    } else {
+                      // Fallback to custom event if callback not provided
+                      const event = new CustomEvent('openNewChatModal');
+                      window.dispatchEvent(event);
+                    }
                   }}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />
-                  Create First Chat
+                  {chatSessions.length === 0 ? 'Create First Chat' : 'Create New Chat'}
                 </Button>
               </div>
             </div>

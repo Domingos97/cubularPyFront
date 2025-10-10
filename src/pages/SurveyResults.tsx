@@ -134,6 +134,7 @@ const SurveyResults = () => {
         selectedPersonalityId={selectedPersonalityId}
         onSurveyChange={handleSurveyChange}
         onPersonalityChange={setSelectedPersonalityId}
+        onOpenNewChatModal={() => setShowPreChatModal(true)}
       />
     );
   };
@@ -192,6 +193,7 @@ const SurveyResults = () => {
         onClose={() => setShowPreChatModal(false)}
         onChatCreated={handleChatCreated}
         initialSurvey={selectedSurvey}
+        selectedPersonalityId={selectedPersonalityId}
       />
     </div>
   );

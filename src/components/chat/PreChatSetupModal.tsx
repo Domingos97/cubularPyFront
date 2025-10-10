@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useSurveys } from '@/contexts/SurveyContext';
 import { Survey } from '@/types/survey';
 import { authenticatedFetch } from '@/utils/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
-import { MessageCircle, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { MessageCircle, FileText, CheckCircle, AlertCircle, Loader2, Brain } from 'lucide-react';
 
 interface SurveyFile {
   id: string;
@@ -20,23 +21,35 @@ interface SurveyFile {
   processingStatus: 'completed' | 'processing' | 'failed' | 'not_started';
 }
 
+interface AIPersonality {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+}
+
 interface PreChatSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onChatCreated: (sessionId: string, surveyId: string, selectedFiles: string[]) => void;
   initialSurvey?: Survey | null;
+  selectedPersonalityId?: string | null;
 }
 
 export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   isOpen,
   onClose,
   onChatCreated,
-  initialSurvey
+  initialSurvey,
+  selectedPersonalityId
 }) => {
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
   const [availableFiles, setAvailableFiles] = useState<SurveyFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectedPersonality, setSelectedPersonality] = useState<string | null>(null);
+  const [availablePersonalities, setAvailablePersonalities] = useState<AIPersonality[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [isLoadingPersonalities, setIsLoadingPersonalities] = useState(false);
   const [isValidatingAccess, setIsValidatingAccess] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -46,33 +59,95 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   const { user } = useAuth();
   const { t } = useTranslation();
 
-  // Reset state when modal opens/closes
-  useEffect(() => {
-    console.log('🔍 FRONTEND: Modal open useEffect triggered. isOpen:', isOpen, 'initialSurvey:', initialSurvey);
-    if (isOpen) {
-      // Pre-select the initial survey if provided
-      setSelectedSurvey(initialSurvey || null);
-      setAvailableFiles([]);
-      setSelectedFiles([]);
-      setAccessError(null);
-      
-      // If we have an initial survey, start loading its files
-      if (initialSurvey) {
-        loadSurveyFiles(initialSurvey.id);
-      }
-    }
-  }, [isOpen, initialSurvey]);
+  // Use refs to track initialized state and prevent infinite loops
+  const initializedRef = useRef(false);
+  const lastInitialSurveyIdRef = useRef<string | null>(null);
+  const lastSelectedPersonalityIdRef = useRef<string | null>(null);
+  const loadedSurveyFilesRef = useRef<string | null>(null); // Track which survey's files we've loaded
 
-  // Load files when survey is selected
+  // Reset state when modal opens/closes - use a more defensive approach
   useEffect(() => {
-    if (selectedSurvey?.id) {
+    if (isOpen) {
+      const currentSurveyId = initialSurvey?.id || null;
+      const currentPersonalityId = selectedPersonalityId || null;
+      
+      // Only initialize if this is the first time opening OR if we haven't initialized yet
+      // Ignore personality changes after initial load to prevent loops
+      const shouldInitialize = !initializedRef.current;
+
+      if (shouldInitialize) {
+        console.log('🔍 FRONTEND: First-time modal initialization. Survey ID:', currentSurveyId, 'Personality ID:', currentPersonalityId);
+        
+        // Pre-select the initial survey if provided
+        setSelectedSurvey(initialSurvey || null);
+        setAvailableFiles([]);
+        setSelectedFiles([]);
+        setAccessError(null);
+        
+        // Set initial personality from parent or reset
+        setSelectedPersonality(currentPersonalityId);
+        
+        // Load personalities only once
+        if (availablePersonalities.length === 0) {
+          loadPersonalities();
+        }
+        
+        // Mark as initialized
+        initializedRef.current = true;
+        lastInitialSurveyIdRef.current = currentSurveyId;
+        lastSelectedPersonalityIdRef.current = currentPersonalityId;
+        
+        // If we have an initial survey, start loading its files
+        if (initialSurvey) {
+          loadSurveyFiles(initialSurvey.id);
+        }
+      } else {
+        // Modal is already initialized, only handle survey changes (not personality changes)
+        if (currentSurveyId !== lastInitialSurveyIdRef.current) {
+          console.log('🔍 FRONTEND: Survey changed during modal session:', currentSurveyId);
+          setSelectedSurvey(initialSurvey || null);
+          lastInitialSurveyIdRef.current = currentSurveyId;
+          loadedSurveyFilesRef.current = null; // Reset file loading tracker for new survey
+          
+          if (initialSurvey) {
+            loadSurveyFiles(initialSurvey.id);
+          }
+        }
+        // Ignore personality changes to prevent infinite loops
+      }
+    } else {
+      // Reset when modal closes
+      initializedRef.current = false;
+      lastInitialSurveyIdRef.current = null;
+      lastSelectedPersonalityIdRef.current = null;
+      loadedSurveyFilesRef.current = null; // Reset file loading tracker
+    }
+  }, [isOpen, initialSurvey?.id]); // Remove selectedPersonalityId from dependencies to break the loop
+
+  // Handle initial personality selection separately to avoid loops
+  useEffect(() => {
+    if (isOpen && initializedRef.current && !selectedPersonality && selectedPersonalityId) {
+      console.log('🔍 FRONTEND: Setting initial personality after modal opened:', selectedPersonalityId);
+      setSelectedPersonality(selectedPersonalityId);
+    }
+  }, [isOpen, selectedPersonalityId, selectedPersonality]); // Separate effect for personality
+
+  // Load files when survey is selected (only if different from current)
+  useEffect(() => {
+    if (selectedSurvey?.id && 
+        selectedSurvey.id !== lastInitialSurveyIdRef.current && 
+        selectedSurvey.id !== loadedSurveyFilesRef.current) {
+      console.log('🔍 FRONTEND: Loading files for newly selected survey:', selectedSurvey.id);
       loadSurveyFiles(selectedSurvey.id);
     }
-  }, [selectedSurvey]);
+  }, [selectedSurvey?.id]); // Only depend on the ID since we have proper guards
 
-  const loadSurveyFiles = async (surveyId: string) => {
+  const loadSurveyFiles = useCallback(async (surveyId: string) => {
+    if (isLoadingFiles || loadedSurveyFilesRef.current === surveyId) return; // Prevent concurrent calls and duplicate loads
+    
     setIsLoadingFiles(true);
     setAccessError(null);
+    loadedSurveyFilesRef.current = surveyId; // Mark this survey as being loaded
 
     try {
       // Validate access using the implemented endpoint
@@ -138,11 +213,37 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     } catch (error) {
       console.error('Error loading survey files:', error);
       setAccessError(t('preChatModal.errors.loadingFailed') || 'Failed to load survey files');
+      loadedSurveyFilesRef.current = null; // Reset on error so we can retry
     } finally {
       setIsLoadingFiles(false);
       setIsValidatingAccess(false);
     }
-  };
+  }, [isLoadingFiles, t]); // Add dependency array for useCallback
+
+  const loadPersonalities = useCallback(async () => {
+    if (isLoadingPersonalities || availablePersonalities.length > 0) return; // Prevent concurrent calls and avoid reloading
+    
+    setIsLoadingPersonalities(true);
+    try {
+      const response = await authenticatedFetch('/api/personalities');
+      if (!response.ok) {
+        throw new Error('Failed to load personalities');
+      }
+      const personalities = await response.json();
+      const activePersonalities = personalities.filter((p: AIPersonality) => p.is_active);
+      setAvailablePersonalities(activePersonalities);
+      
+      // Auto-select the first personality if none is selected and we have personalities
+      if (!selectedPersonality && activePersonalities.length > 0) {
+        setSelectedPersonality(activePersonalities[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading personalities:', error);
+      setAccessError('Failed to load AI personalities. Please try again.');
+    } finally {
+      setIsLoadingPersonalities(false);
+    }
+  }, [isLoadingPersonalities, availablePersonalities.length, selectedPersonality]);
 
   const handleFileToggle = (fileId: string) => {
     setSelectedFiles(prev => 
@@ -162,12 +263,13 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   };
 
   const handleCreateChat = async () => {
-    if (!selectedSurvey || selectedFiles.length === 0) return;
+    if (!selectedSurvey || selectedFiles.length === 0 || !selectedPersonality) return;
 
     setIsPreloading(true);
     setPreloadingProgress({ current: 0, total: 3 });
 
     try {
+      console.log('🔍 PreChatSetupModal: Creating session with personality:', selectedPersonality);
       
       const sessionResponse = await authenticatedFetch('/api/chat/sessions/create-optimized', {
         method: 'POST',
@@ -175,7 +277,8 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
         body: JSON.stringify({
           surveyId: selectedSurvey.id,
           fileIds: selectedFiles,
-          title: `${t('preChatModal.chatTitle') || 'Optimized Chat'}: ${selectedSurvey.title || selectedSurvey.filename}`
+          title: `${t('preChatModal.chatTitle') || 'Optimized Chat'}: ${selectedSurvey.title || selectedSurvey.filename}`,
+          personalityId: selectedPersonality
         })
       });
 
@@ -231,7 +334,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   };
 
   const processedFiles = availableFiles.filter(file => file.isProcessed);
-  const canCreateChat = selectedSurvey && selectedFiles.length > 0 && !isPreloading;
+  const canCreateChat = selectedSurvey && selectedFiles.length > 0 && selectedPersonality && !isPreloading;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -277,6 +380,44 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* AI Personality Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              AI Personality
+            </label>
+            {isLoadingPersonalities ? (
+              <div className="flex items-center gap-2 p-3 bg-gray-800 border border-gray-600 rounded-lg">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                <span className="text-sm text-gray-300">Loading personalities...</span>
+              </div>
+            ) : (
+              <Select 
+                value={selectedPersonality || ""} 
+                onValueChange={setSelectedPersonality}
+              >
+                <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                  <SelectValue placeholder="Choose an AI personality..." />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-600 text-white">
+                  {availablePersonalities.map(personality => (
+                    <SelectItem key={personality.id} value={personality.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{personality.name}</span>
+                        <span className="text-xs text-gray-400">{personality.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedPersonality && availablePersonalities.length > 0 && (
+              <div className="p-2 bg-gray-800/50 border border-gray-600/50 rounded text-xs text-gray-400">
+                <strong>Selected:</strong> {availablePersonalities.find(p => p.id === selectedPersonality)?.description}
+              </div>
+            )}
           </div>
 
           {/* Access Validation Status */}
@@ -413,19 +554,29 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
-            <Button 
-              variant="ghost" 
-              onClick={onClose}
-              disabled={isPreloading}
-            >
-              {t('preChatModal.cancel') || 'Cancel'}
-            </Button>
-            <Button 
-              onClick={handleCreateChat}
-              disabled={!canCreateChat}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
+          <div className="flex flex-col gap-3 pt-3 border-t border-gray-700">
+            {/* Validation feedback */}
+            {!canCreateChat && !isPreloading && (
+              <div className="text-xs text-gray-400 text-center">
+                {!selectedSurvey && "Please select a survey"}
+                {selectedSurvey && selectedFiles.length === 0 && "Please select at least one file"}
+                {selectedSurvey && selectedFiles.length > 0 && !selectedPersonality && "Please select an AI personality"}
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="ghost" 
+                onClick={onClose}
+                disabled={isPreloading}
+              >
+                {t('preChatModal.cancel') || 'Cancel'}
+              </Button>
+              <Button 
+                onClick={handleCreateChat}
+                disabled={!canCreateChat}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
               {isPreloading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -438,6 +589,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
                 </>
               )}
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

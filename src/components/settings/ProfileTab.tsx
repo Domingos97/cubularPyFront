@@ -15,7 +15,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchEnabledLanguages, updateUserLanguagePreference } from '@/utils/api';
+import { fetchEnabledLanguages, updateUserLanguagePreference, updateUserProfile } from '@/utils/api';
 import type { SupportedLanguage } from '@/types/language';
 import { UserIcon, Camera, Languages } from 'lucide-react';
 
@@ -24,14 +24,22 @@ interface ProfileTabProps {
 }
 
 export const ProfileTab = ({ className }: ProfileTabProps) => {
-  const [name, setName] = useState("John Doe");
-  const [email, setEmail] = useState("john.doe@example.com");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [availableLanguages, setAvailableLanguages] = useState<SupportedLanguage[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const { toast } = useToast();
   const { t, currentLanguage, setLanguage } = useTranslation();
   const { user, updateUser } = useAuth();
+
+  // Initialize profile data from user
+  useEffect(() => {
+    if (user) {
+      setName(user.username || user.email.split('@')[0] || 'User');
+      setEmail(user.email);
+    }
+  }, [user]);
 
   // Load available languages and user's current preference
   useEffect(() => {
@@ -94,19 +102,64 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
   };
 
   const handleSaveProfile = async () => {
+    // Basic validation
+    if (!name.trim()) {
+      toast({
+        title: t('settings.profile.validationError'),
+        description: t('settings.profile.nameRequired'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      toast({
+        title: t('settings.profile.validationError'),
+        description: t('settings.profile.emailRequired'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check if anything changed
+    const currentName = user?.username || user?.email?.split('@')[0] || '';
+    const currentEmail = user?.email || '';
+    
+    if (name.trim() === currentName && email.trim() === currentEmail) {
+      toast({
+        title: t('settings.profile.noChanges'),
+        description: t('settings.profile.noChangesMessage'),
+        variant: 'default'
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // TODO: Implement actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      const profileData = {
+        username: name.trim(),
+        email: email.trim()
+      };
+      
+      await updateUserProfile(profileData);
+      
+      // Update the local user state
+      if (user) {
+        updateUser({ 
+          username: name.trim(),
+          email: email.trim()
+        });
+      }
       
       toast({
         title: t('settings.profile.profileUpdated'),
         description: t('settings.profile.profileUpdateSuccess'),
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Profile update error:', error);
       toast({
         title: t('settings.profile.updateError'),
-        description: t('settings.profile.updateErrorMessage'),
+        description: error.message || t('settings.profile.updateErrorMessage'),
         variant: 'destructive'
       });
     } finally {
@@ -140,7 +193,10 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
             <div className="relative group">
               <Avatar className="h-20 w-20 mb-4 md:mb-0">
                 <AvatarImage src="/placeholder.svg" alt="Profile" />
-                <AvatarFallback className="bg-blue-600 text-white text-lg">JD</AvatarFallback>
+                <AvatarFallback className="bg-blue-600 text-white text-lg">
+                  {name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 
+                   email ? email[0].toUpperCase() : 'U'}
+                </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer mb-4 md:mb-0">
                 <Camera className="h-6 w-6 text-white" />
@@ -196,6 +252,55 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
               </div>
             </div>
 
+            {/* User Role */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
+              <Label className="md:text-right text-gray-300 font-medium">
+                Account Role
+              </Label>
+              <div className="md:col-span-3">
+                <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-200">
+                  <span className="capitalize">{user?.role || 'User'}</span>
+                  {user?.role === 'admin' && (
+                    <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">
+                      Administrator
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* User ID */}
+            {user?.id && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
+                <Label className="md:text-right text-gray-300 font-medium">
+                  User ID
+                </Label>
+                <div className="md:col-span-3">
+                  <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-200 font-mono text-sm">
+                    {user.id}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Account Created */}
+            {user?.created_at && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
+                <Label className="md:text-right text-gray-300 font-medium">
+                  Member Since
+                </Label>
+                <div className="md:col-span-3">
+                  <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-200">
+                    {new Date(user.created_at).toLocaleDateString('pt-PT', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-start">
               <Label htmlFor="timezone" className="md:text-right text-gray-300 font-medium md:pt-2">
                 {t('settings.profile.timezone')}
@@ -225,18 +330,22 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
               <div className="md:col-span-3">
                 <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
                   <SelectTrigger className="bg-gray-700/50 border-gray-600 text-gray-200 focus:border-blue-500">
-                    <SelectValue placeholder="Select language..." />
+                    <SelectValue placeholder={t('settings.profile.selectLanguage')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableLanguages.map((language) => (
-                      <SelectItem key={language.code} value={language.code}>
-                        <div className="flex items-center gap-2">
-                          <span>{getFlagForLanguage(language.code)}</span>
-                          <span>{language.native_name}</span>
-                          <span className="text-gray-500 text-sm">({language.name})</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {availableLanguages && availableLanguages.length > 0 ? (
+                      availableLanguages.map((language) => (
+                        <SelectItem key={language.code} value={language.code}>
+                          <div className="flex items-center gap-2">
+                            <span>{getFlagForLanguage(language.code)}</span>
+                            <span>{language.native_name}</span>
+                            <span className="text-gray-500 text-sm">({language.name})</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>Loading languages...</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-500 mt-1">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,9 +14,10 @@ interface EditableDataTableProps {
   rows: string[][];
   totalResponses: number;
   onDataChange: (newRows: string[][]) => void;
+  onUnsavedChanges?: (hasChanges: boolean) => void;
 }
 
-const EditableDataTable = ({ headers, rows, totalResponses, onDataChange }: EditableDataTableProps) => {
+const EditableDataTable = ({ headers, rows, totalResponses, onDataChange, onUnsavedChanges }: EditableDataTableProps) => {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,6 +26,11 @@ const EditableDataTable = ({ headers, rows, totalResponses, onDataChange }: Edit
   const [editingRow, setEditingRow] = useState<{ index: number; data: string[] } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const rowsPerPage = 50;
+
+  // Notify parent component about unsaved changes
+  useEffect(() => {
+    onUnsavedChanges?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onUnsavedChanges]);
 
   const filteredRows = rows.filter(row =>
     row.some(cell => 

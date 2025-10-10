@@ -22,12 +22,14 @@ export const PersonalitySelector: React.FC<PersonalitySelectorProps> = ({
   } = usePersonalities();
 
 
-  // Notify parent component when selectedPersonality changes from the hook
+  // Only notify parent component when selectedPersonality changes from the hook
+  // if no explicit value is provided (i.e., when the component is uncontrolled)
   useEffect(() => {
-    if (selectedPersonality && selectedPersonality.id !== value) {
-      onPersonalityChange?.(selectedPersonality.id);
+    if (!value && selectedPersonality && onPersonalityChange) {
+      console.log('🔍 PersonalitySelector: Auto-selecting personality from user preferences:', selectedPersonality.id);
+      onPersonalityChange(selectedPersonality.id);
     }
-  }, [selectedPersonality, value, onPersonalityChange]);
+  }, [selectedPersonality, value, onPersonalityChange]); // Only auto-select if no value is controlled
 
   const handlePersonalityChange = (personalityId: string) => {
     updateUserPreference(personalityId);
@@ -44,7 +46,8 @@ export const PersonalitySelector: React.FC<PersonalitySelectorProps> = ({
   }
 
   // Determine labels for the currently selected personality
-  const currentPersonalityId = selectedPersonality?.id ?? value ?? '';
+  // Prioritize explicit value prop over hook's selectedPersonality
+  const currentPersonalityId = value || selectedPersonality?.id || '';
   const currentPersonality = personalities.find(p => p.id === currentPersonalityId);
   const labels = [];
 
@@ -56,11 +59,13 @@ export const PersonalitySelector: React.FC<PersonalitySelectorProps> = ({
     labels.push('preferred');
   }
 
+  console.log('🔍 PersonalitySelector: Rendering with value:', value, 'selectedPersonality:', selectedPersonality?.id, 'currentPersonalityId:', currentPersonalityId);
+
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
       <Brain className="h-4 w-4 text-muted-foreground" />
       <Select 
-        value={selectedPersonality?.id ?? value ?? ''} 
+        value={currentPersonalityId} 
         onValueChange={handlePersonalityChange}
       >
         <SelectTrigger className="w-48">
