@@ -37,32 +37,227 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
   const { t } = useTranslation();
   // Export chat session as PDF
   const handleExportPDF = async (sessionId: string, sessionTitle: string) => {
-    // Load messages for the session
-    const result = await loadSession(sessionId);
-    const messages = result?.messages || [];
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text(`Chat Session: ${sessionTitle}`, 10, 20);
-    let y = 30;
-    messages.forEach((msg: any, idx: number) => {
-      const sender = msg.sender === 'user' ? 'User' : 'Assistant';
-      doc.setFontSize(12);
-      doc.text(`${sender}:`, 10, y);
-      y += 7;
-      doc.setFontSize(11);
-      // Split long messages for PDF
-      const lines = doc.splitTextToSize(msg.content, 180);
-      lines.forEach((line: string) => {
-        doc.text(line, 15, y);
-        y += 6;
-        if (y > 280) {
+    try {
+      // Load messages for the session
+      const result = await loadSession(sessionId);
+      const messages = result?.messages || [];
+      const doc = new jsPDF();
+      
+      // Set up PDF styling
+      doc.setFontSize(16);
+      doc.text(`Chat Session: ${sessionTitle}`, 10, 20);
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 10, 28);
+      
+      let y = 40;
+      const pageHeight = 280; // Available height per page
+      const margin = 10;
+      const contentWidth = 190; // Page width minus margins
+      
+      messages.forEach((msg: any, idx: number) => {
+        // Check if we need a new page
+        if (y > pageHeight) {
           doc.addPage();
           y = 20;
         }
+        
+        const sender = msg.sender === 'user' ? 'User' : 'Assistant';
+        
+        // Message header
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${sender}:`, margin, y);
+        y += 8;
+        
+        // Message content
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const contentLines = doc.splitTextToSize(msg.content, contentWidth - 10);
+        contentLines.forEach((line: string) => {
+          if (y > pageHeight) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, margin + 5, y);
+          y += 5;
+        });
+        
+        // Add data snapshot if available
+        if (msg.data_snapshot && msg.sender === 'assistant') {
+          y += 5; // Add some spacing
+          
+          // Check if we need a new page for the snapshot
+          if (y > pageHeight - 40) {
+            doc.addPage();
+            y = 20;
+          }
+          
+          // Snapshot header
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.text('Data Insights:', margin + 5, y);
+          y += 8;
+          
+          // Handle different snapshot formats
+          if (msg.data_snapshot.summary && msg.data_snapshot.insights) {
+            // New format - UserFriendlySnapshot
+            const snapshot = msg.data_snapshot;
+            
+            // Summary
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            if (snapshot.summary.searchTerm) {
+              doc.text(`Search Term: ${snapshot.summary.searchTerm}`, margin + 10, y);
+              y += 6;
+            }
+            
+            // Confidence
+            if (snapshot.confidence) {
+              doc.text(`Confidence: ${snapshot.confidence.level}`, margin + 10, y);
+              y += 6;
+              if (snapshot.confidence.explanation) {
+                const explanationLines = doc.splitTextToSize(snapshot.confidence.explanation, contentWidth - 20);
+                explanationLines.forEach((line: string) => {
+                  if (y > pageHeight) {
+                    doc.addPage();
+                    y = 20;
+                  }
+                  doc.text(line, margin + 10, y);
+                  y += 5;
+                });
+              }
+              y += 3;
+            }
+            
+            // Insights
+            if (snapshot.insights && snapshot.insights.length > 0) {
+              doc.setFont(undefined, 'bold');
+              doc.text('Key Insights:', margin + 10, y);
+              y += 6;
+              doc.setFont(undefined, 'normal');
+              
+              snapshot.insights.forEach((insight: any) => {
+                if (y > pageHeight) {
+                  doc.addPage();
+                  y = 20;
+                }
+                // Remove emojis from insight text to avoid encoding issues
+                const cleanIcon = insight.icon ? insight.icon.replace(/[^\x00-\x7F]/g, "•") : '•';
+                const insightText = `${cleanIcon} ${insight.title}: ${insight.value}`;
+                const insightLines = doc.splitTextToSize(insightText, contentWidth - 20);
+                insightLines.forEach((line: string) => {
+                  if (y > pageHeight) {
+                    doc.addPage();
+                    y = 20;
+                  }
+                  doc.text(line, margin + 15, y);
+                  y += 5;
+                });
+                y += 2;
+              });
+            }
+          } else if (msg.data_snapshot.stats) {
+            // Legacy format with stats array
+            const stats = msg.data_snapshot.stats;
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            
+            stats.forEach((stat: any) => {
+              if (y > pageHeight) {
+                doc.addPage();
+                y = 20;
+              }
+              
+              // Category header
+              doc.setFont(undefined, 'bold');
+              doc.text(`${stat.icon || '📊'} ${stat.category}:`, margin + 10, y);
+              y += 6;
+              doc.setFont(undefined, 'normal');
+              
+              // Category items
+              if (stat.items && stat.items.length > 0) {
+                stat.items.forEach((item: any) => {
+                  if (y > pageHeight) {
+                    doc.addPage();
+                    y = 20;
+                  }
+                  const itemText = `• ${item.label}: ${item.percentage}% (${item.count})`;
+                  const itemLines = doc.splitTextToSize(itemText, contentWidth - 25);
+                  itemLines.forEach((line: string) => {
+                    if (y > pageHeight) {
+                      doc.addPage();
+                      y = 20;
+                    }
+                    doc.text(line, margin + 15, y);
+                    y += 5;
+                  });
+                });
+              }
+              y += 3;
+            });
+          } else {
+            // Generic object format
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            Object.entries(msg.data_snapshot).forEach(([key, value]: [string, any]) => {
+              if (y > pageHeight) {
+                doc.addPage();
+                y = 20;
+              }
+              const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+              const snapshotText = `${formattedKey}: ${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}`;
+              const snapshotLines = doc.splitTextToSize(snapshotText, contentWidth - 20);
+              snapshotLines.forEach((line: string) => {
+                if (y > pageHeight) {
+                  doc.addPage();
+                  y = 20;
+                }
+                doc.text(line, margin + 10, y);
+                y += 5;
+              });
+              y += 2;
+            });
+          }
+        }
+        
+        // Add confidence info if available (and not already included in snapshot)
+        if (msg.confidence && msg.sender === 'assistant' && (!msg.data_snapshot || !msg.data_snapshot.confidence)) {
+          y += 3;
+          if (y > pageHeight) {
+            doc.addPage();
+            y = 20;
+          }
+          
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'italic');
+          let confidenceText = `Confidence: ${msg.confidence.score ? Math.round(msg.confidence.score * 100) + '%' : 'N/A'}`;
+          if (msg.confidence.reliability) {
+            confidenceText += ` (${msg.confidence.reliability})`;
+          }
+          doc.text(confidenceText, margin + 5, y);
+          y += 6;
+        }
+        
+        y += 8; // Add spacing between messages
       });
-      y += 4;
-    });
-    doc.save(`${sessionTitle.replace(/[^a-zA-Z0-9]/g, '_')}_chat.pdf`);
+      
+      // Save the PDF
+      doc.save(`${sessionTitle.replace(/[^a-zA-Z0-9]/g, '_')}_chat_with_insights.pdf`);
+      
+      // Show success message
+      toast({
+        title: t('chatSidebar.exportComplete'),
+        description: t('chatSidebar.exportCompleteDesc'),
+      });
+      
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast({
+        variant: "destructive",
+        title: t('chatSidebar.exportFailed'),
+        description: t('chatSidebar.exportFailedDesc'),
+      });
+    }
   };
   const { user, logout } = useAuth();
   const navigate = useNavigate();

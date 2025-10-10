@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminSidebar from "@/components/AdminSidebar";
 import UserSidebar from "@/components/UserSidebar";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,10 +16,27 @@ type SettingsTab = 'profile' | 'notifications' | 'plan' | 'subscription';
 
 const Settings = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+
+  // Handle URL parameters for tab navigation
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as SettingsTab;
+    if (tabParam && ['profile', 'notifications', 'plan', 'subscription'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    // Update URL parameter
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tab', tab);
+    setSearchParams(newSearchParams);
+  };
   
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -124,7 +141,7 @@ const Settings = () => {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => handleTabChange(tab.id)}
                         className={`w-full flex items-center gap-3 px-3 py-3 text-left rounded-md transition-all duration-200 ${
                           activeTab === tab.id
                             ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30'

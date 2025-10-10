@@ -277,7 +277,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
         body: JSON.stringify({
           surveyId: selectedSurvey.id,
           fileIds: selectedFiles,
-          title: `${t('preChatModal.chatTitle') || 'Optimized Chat'}: ${selectedSurvey.title || selectedSurvey.filename}`,
+          title: `New Chat`, // Use placeholder title that will be updated by first message
           personalityId: selectedPersonality
         })
       });

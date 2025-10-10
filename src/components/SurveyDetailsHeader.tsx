@@ -2,8 +2,7 @@ import { ArrowLeft, Download, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import AdminSidebar from "./AdminSidebar";
-import UserSidebar from "./UserSidebar";
+import { useTranslation } from "@/resources/i18n";
 // import { useAuth } from "@/hooks/useAuth";
 
 import React from "react";
@@ -20,6 +19,7 @@ const SurveyDetailsHeader = ({
 }: SurveyDetailsHeaderProps) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useTranslation();
 
 
   const toggleSidebar = () => {
@@ -46,7 +46,7 @@ const SurveyDetailsHeader = ({
                 <Menu className="h-5 w-5" />
               </Button>
               <h2 className="text-2xl font-grotesk font-semibold text-white pb-0.5 translate-y-[2px]">
-                Survey Details: {surveyTitle}
+                {t('common.surveyDetails')}: {surveyTitle}
               </h2>
             </div>
             {/* Back to Admin button */}

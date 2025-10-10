@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { authenticatedFetch } from '@/utils/api';
+import { authenticatedFetch, markNotificationAsRead, getUnreadNotificationCount } from '@/utils/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
+import { useNavigate } from 'react-router-dom';
 
 interface UserNotification {
   id: string;
@@ -17,6 +18,7 @@ interface UserNotification {
   message: string;
   status: 'pending' | 'in_progress' | 'resolved' | 'dismissed';
   priority: number;
+  is_read: boolean;
   admin_response?: string;
   responded_by?: string;
   responded_at?: string;
@@ -27,6 +29,7 @@ interface UserNotification {
 
 const UserNotificationsBell = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -104,11 +107,9 @@ const UserNotificationsBell = () => {
         
         setNotifications(relevantNotifications);
         
-        // Count unread notifications (those with admin responses that user hasn't seen)
-        const unreadNotifications = relevantNotifications.filter((n: UserNotification) => 
-          n.admin_response && n.status !== 'resolved'
-        );
-        setUnreadCount(unreadNotifications.length);
+        // Use the unread_count from the API response
+        setUnreadCount(data.unread_count || 0);
+        
       } else if (response.status === 404) {
         // Handle case where notification endpoint doesn't exist or user has no notifications
         setNotifications([]);
@@ -128,14 +129,40 @@ const UserNotificationsBell = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, isOpen, toast]);
+  }, [user?.id, isOpen, toast, t]);
 
-  const handleNotificationClick = (notification: UserNotification) => {
-    // For now, just close the dropdown. Could expand to show full details in a modal
-    setIsOpen(false);
-    
-    // Optionally, you could navigate to a user notifications page
-    // navigate('/my-notifications');
+  const handleNotificationClick = async (notification: UserNotification) => {
+    try {
+      // Mark notification as read if it's not already read
+      if (!notification.is_read) {
+        await markNotificationAsRead(notification.id);
+        
+        // Update the local state to reflect the change
+        setNotifications(prev => 
+          prev.map(n => 
+            n.id === notification.id 
+              ? { ...n, is_read: true }
+              : n
+          )
+        );
+        
+        // Update unread count
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+      // Close the dropdown
+      setIsOpen(false);
+      
+      // Navigate to settings with notifications tab active
+      navigate('/settings?tab=notifications');
+      
+    } catch (error) {
+      toast({
+        title: t('notifications.error'),
+        description: t('notifications.failedToMarkAsRead', { message: error instanceof Error ? error.message : t('notifications.unknownError') }),
+        variant: 'destructive'
+      });
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -262,17 +289,26 @@ const UserNotificationsBell = () => {
                         <div
                           key={notification.id}
                           onClick={() => handleNotificationClick(notification)}
-                          className="p-4 hover:bg-gray-700/50 cursor-pointer transition-all duration-200"
+                          className={`p-4 hover:bg-gray-700/50 cursor-pointer transition-all duration-200 ${
+                            !notification.is_read ? 'bg-blue-900/10 border-l-2 border-blue-500' : ''
+                          }`}
                         >
                           <div className="flex items-start gap-3">
-                            {/* Status indicator */}
-                            <div className={`w-3 h-3 rounded-full mt-1.5 ${statusColors[notification.status]} shadow-lg`} />
+                            {/* Status indicator with read/unread styling */}
+                            <div className={`w-3 h-3 rounded-full mt-1.5 ${statusColors[notification.status]} shadow-lg ${
+                              !notification.is_read ? 'ring-2 ring-blue-400/50' : ''
+                            }`} />
                             
                             <div className="flex-1 min-w-0">
                               {/* Header */}
                               <div className="flex items-start justify-between mb-2">
-                                <h4 className="text-sm font-semibold text-white truncate leading-tight">
+                                <h4 className={`text-sm font-semibold truncate leading-tight ${
+                                  !notification.is_read ? 'text-white' : 'text-gray-300'
+                                }`}>
                                   {notification.title}
+                                  {!notification.is_read && (
+                                    <span className="ml-2 w-2 h-2 bg-blue-400 rounded-full inline-block"></span>
+                                  )}
                                 </h4>
                                 <div className="flex items-center gap-1 ml-2">
                                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${priorityColors[notification.priority as keyof typeof priorityColors]} bg-gray-700`}>

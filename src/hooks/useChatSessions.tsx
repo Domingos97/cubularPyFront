@@ -70,9 +70,7 @@ export function useChatSessions() {
     
     try {
   const surveyIds = surveys.map(s => s.id);
-      const sessionTitle = surveys.length === 1 
-        ? `Chat about ${surveys[0].filename}` 
-        : `Chat about ${surveys.length} surveys`;
+      const sessionTitle = `New Chat`; // Use placeholder title that will be updated by first message
       
       console.log('🎯 Creating new session with selected files:', selectedFileIds);
       

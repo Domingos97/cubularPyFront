@@ -26,6 +26,7 @@ export interface UserNotification {
   message: string;
   status: NotificationStatus;
   priority: number; // 1-5, where 5 is highest priority
+  is_read: boolean; // Whether the notification has been read by the user
   admin_response?: string; // Legacy field for backward compatibility
   responded_by?: string;
   responded_at?: string;

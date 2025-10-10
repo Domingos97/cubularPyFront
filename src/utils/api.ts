@@ -334,3 +334,60 @@ export const updateUserProfile = async (profileData: { username?: string; email?
   
   return response.json();
 };
+
+// ========================
+// Notification API Functions
+// ========================
+
+/**
+ * Mark a specific notification as read
+ */
+export const markNotificationAsRead = async (notificationId: string): Promise<any> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/${notificationId}/read`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Failed to mark notification as read: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
+/**
+ * Mark all notifications as read for the current user
+ */
+export const markAllNotificationsAsRead = async (): Promise<any> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/read-all`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Failed to mark all notifications as read: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
+/**
+ * Get unread notification count for the current user
+ */
+export const getUnreadNotificationCount = async (): Promise<{ unread_count: number }> => {
+  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/unread-count`);
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Failed to get unread notification count: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.data;
+};
