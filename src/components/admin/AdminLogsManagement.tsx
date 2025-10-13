@@ -93,20 +93,32 @@ const AdminLogsManagement = () => {
         }
       });
 
-      const response = await authenticatedFetch(`http://localhost:3000/api/logs?${params}`);
+      const url = `http://localhost:8000/api/logs?${params}`;
+      console.log('🔍 LOGS - Fetching:', url);
+
+      const response = await authenticatedFetch(url);
+      console.log('🔍 LOGS - Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch logs');
+        const errorText = await response.text();
+        console.error('🔍 LOGS - Error:', errorText);
+        throw new Error(`Failed to fetch logs: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('🔍 LOGS - Data received:', {
+        hasData: 'data' in data,
+        dataCount: data.data?.length || 0,
+        totalCount: data.pagination?.total || 0
+      });
+      
       setLogs(data.data || []);
       setTotalCount(data.pagination?.total || 0);
     } catch (error) {
-      console.error('Error fetching logs:', error);
+      console.error('🔍 LOGS - Fetch error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch logs',
+        description: `Failed to fetch logs: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: 'destructive',
       });
     } finally {
@@ -183,7 +195,7 @@ const AdminLogsManagement = () => {
       const futureDate = new Date();
       futureDate.setFullYear(futureDate.getFullYear() + 1); // One year from now
       
-      const response = await authenticatedFetch('http://localhost:3000/api/logs', {
+      const response = await authenticatedFetch('http://localhost:8000/api/logs', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

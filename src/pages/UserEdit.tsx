@@ -120,10 +120,9 @@ export const UserEdit = () => {
 
   // Access management states
   const [isGrantAccessOpen, setIsGrantAccessOpen] = useState(false);
-  const [grantAccessType, setGrantAccessType] = useState<'survey' | 'file'>('survey');
   const [selectedAccessType, setSelectedAccessType] = useState<'read' | 'write' | 'admin'>('read');
   const [selectedSurveyId, setSelectedSurveyId] = useState('');
-  const [selectedFileId, setSelectedFileId] = useState('');
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [expiresAt, setExpiresAt] = useState('');
   const [quickGrantSurvey, setQuickGrantSurvey] = useState('');
 
@@ -137,7 +136,7 @@ export const UserEdit = () => {
   const fetchUser = async () => {
     try {
       setIsLoading(true);
-      const userData = await authenticatedApiRequest<UserWithAccess>(`http://localhost:3000/api/users/${userId}`);
+      const userData = await authenticatedApiRequest<UserWithAccess>(`http://localhost:8000/api/users/${userId}`);
       console.log('Fetched updated user data:', userData);
       setUser(userData);
     } catch (error) {
@@ -155,8 +154,8 @@ export const UserEdit = () => {
 
   const fetchSurveys = async () => {
     try {
-      const data = await authenticatedApiRequest(`http://localhost:3000/api/admin/access/surveys-files`);
-      setSurveys(data);
+      const data = await authenticatedApiRequest<{surveys: Survey[]}>(`http://localhost:8000/api/admin/access/surveys-files`);
+      setSurveys(data?.surveys || []);
     } catch (error) {
       console.error('Error fetching surveys:', error);
       toast({
@@ -185,7 +184,7 @@ export const UserEdit = () => {
         updateData.password = newPassword;
       }
 
-      const response = await authenticatedFetch(`http://localhost:3000/api/users/${user.id}`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -217,136 +216,150 @@ export const UserEdit = () => {
   };
 
   const handleGrantAccess = async () => {
-    if (!user || (!selectedSurveyId && !selectedFileId)) {
+    if (!user || !selectedSurveyId) {
       toast({
         title: t('user.missingInformation'),
-        description: t('user.selectSurveyOrFile'),
+        description: 'Please select a survey',
         variant: 'destructive'
       });
       return;
     }
 
     try {
-      const endpoint = grantAccessType === 'survey' 
-        ? 'http://localhost:3000/api/admin/access/survey/grant' 
-        : 'http://localhost:3000/api/admin/access/file/grant';
+      const selectedSurvey = surveys.find(s => s.id === selectedSurveyId);
+      if (!selectedSurvey) {
+        throw new Error('Selected survey not found');
+      }
 
-      const payload = grantAccessType === 'survey' 
-        ? {
-            userId: user.id,
-            surveyId: selectedSurveyId,
-            accessType: selectedAccessType,
-            expiresAt: expiresAt || null
-          }
-        : {
-            userId: user.id,
-            surveyFileId: selectedFileId,
-            accessType: selectedAccessType,
-            expiresAt: expiresAt || null
-          };
-
-      const response = await authenticatedFetch(endpoint, {
+      // Always grant survey access
+      const surveyResponse = await authenticatedFetch('http://localhost:8000/api/admin/access/survey/grant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          userId: user.id,
+          surveyId: selectedSurveyId,
+          accessType: selectedAccessType,
+          expiresAt: expiresAt || null
+        })
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (!surveyResponse.ok) {
+        throw new Error('Failed to grant survey access');
+      }
+
+      // Grant access to selected files (if any)
+      let fileResponses: Response[] = [];
+      if (selectedFileIds.length > 0) {
+        fileResponses = await Promise.all(
+          selectedFileIds.map(fileId =>
+            authenticatedFetch('http://localhost:8000/api/admin/access/file/grant', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                userId: user.id,
+                surveyFileId: fileId,
+                accessType: selectedAccessType,
+                expiresAt: expiresAt || null
+              })
+            })
+          )
+        );
+
+        // Check if any file access grants failed
+        const failedFiles = fileResponses.filter(response => !response.ok);
+        if (failedFiles.length > 0) {
+          console.warn(`Failed to grant access to ${failedFiles.length} files`);
+        }
+      }
+
+      // Update user state locally
+      setUser(prevUser => {
+        if (!prevUser) return prevUser;
         
-        // Update user state locally instead of full refresh
-        setUser(prevUser => {
-          if (!prevUser) return prevUser;
-          
-          const updatedUser = { ...prevUser };
-          const now = new Date().toISOString();
-          
-          if (grantAccessType === 'survey') {
-            // Remove any existing access for this survey
-            const filteredAccess = prevUser.user_survey_access?.filter(access => 
-              access.survey_id !== selectedSurveyId
-            ) || [];
-            
-            // Find survey details
-            const survey = surveys.find(s => s.id === selectedSurveyId);
-            
-            // Add new access
-            updatedUser.user_survey_access = [
-              ...filteredAccess,
-              {
-                id: result.access?.id || `temp-${Date.now()}`,
-                survey_id: selectedSurveyId,
-                access_type: selectedAccessType,
-                granted_at: now,
-                expires_at: expiresAt || undefined,
-                is_active: true,
+        const updatedUser = { ...prevUser };
+        const now = new Date().toISOString();
+        
+        // Remove any existing access for this survey
+        const filteredSurveyAccess = prevUser.user_survey_access?.filter(access => 
+          access.survey_id !== selectedSurveyId
+        ) || [];
+        
+        // Add new survey access
+        updatedUser.user_survey_access = [
+          ...filteredSurveyAccess,
+          {
+            id: `temp-survey-${Date.now()}`,
+            survey_id: selectedSurveyId,
+            access_type: selectedAccessType,
+            granted_at: now,
+            expires_at: expiresAt || undefined,
+            is_active: true,
+            surveys: {
+              id: selectedSurveyId,
+              title: selectedSurvey.title,
+              category: selectedSurvey.category
+            }
+          }
+        ];
+
+        // Remove existing file access for selected files and add new ones
+        if (selectedFileIds.length > 0) {
+          const filteredFileAccess = prevUser.user_survey_file_access?.filter(access => 
+            !selectedFileIds.includes(access.survey_file_id)
+          ) || [];
+
+          const newFileAccess = selectedFileIds.map(fileId => {
+            const file = selectedSurvey.survey_files.find(f => f.id === fileId);
+            return {
+              id: `temp-file-${fileId}-${Date.now()}`,
+              survey_file_id: fileId,
+              access_type: selectedAccessType,
+              granted_at: now,
+              expires_at: expiresAt || undefined,
+              is_active: true,
+              survey_files: {
+                id: fileId,
+                filename: file?.filename || 'Unknown File',
                 surveys: {
                   id: selectedSurveyId,
-                  title: survey?.title || 'Unknown Survey',
-                  category: survey?.category || 'Unknown'
+                  title: selectedSurvey.title
                 }
               }
-            ];
-          } else {
-            // Remove any existing access for this file
-            const filteredAccess = prevUser.user_survey_file_access?.filter(access => 
-              access.survey_file_id !== selectedFileId
-            ) || [];
-            
-            // Find file details
-            let fileDetails = null;
-            for (const survey of surveys) {
-              const file = survey.survey_files.find(f => f.id === selectedFileId);
-              if (file) {
-                fileDetails = {
-                  filename: file.filename,
-                  surveyTitle: survey.title
-                };
-                break;
-              }
-            }
-            
-            // Add new access
-            updatedUser.user_survey_file_access = [
-              ...filteredAccess,
-              {
-                id: result.access?.id || `temp-${Date.now()}`,
-                survey_file_id: selectedFileId,
-                access_type: selectedAccessType,
-                granted_at: now,
-                expires_at: expiresAt || undefined,
-                is_active: true,
-                survey_files: {
-                  id: selectedFileId,
-                  filename: fileDetails?.filename || 'Unknown File',
-                  surveys: {
-                    id: 'unknown',
-                    title: fileDetails?.surveyTitle || 'Unknown Survey'
-                  }
-                }
-              }
-            ];
-          }
-          
-          return updatedUser;
-        });
+            };
+          });
+
+          updatedUser.user_survey_file_access = [
+            ...filteredFileAccess,
+            ...newFileAccess
+          ];
+        }
         
-        toast({
-          title: t('user.success'),
-          description: t('user.accessGranted', { type: grantAccessType === 'survey' ? 'Survey' : 'File' })
-        });
-        setIsGrantAccessOpen(false);
-        resetGrantAccessForm();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to grant access');
-      }
+        return updatedUser;
+      });
+
+      const message = selectedFileIds.length > 0 
+        ? `Access granted to survey "${selectedSurvey.title}" and ${selectedFileIds.length} selected files`
+        : `Access granted to survey "${selectedSurvey.title}"`;
+
+      toast({
+        title: t('user.success'),
+        description: message
+      });
+
+      // Reset form
+      setIsGrantAccessOpen(false);
+      setSelectedSurveyId('');
+      setSelectedFileIds([]);
+      setExpiresAt('');
+      
     } catch (error) {
       console.error('Error granting access:', error);
       toast({
-        title: 'Error',
+        title: t('user.error'),
         description: error instanceof Error ? error.message : 'Failed to grant access',
         variant: 'destructive'
       });
@@ -358,8 +371,8 @@ export const UserEdit = () => {
 
     try {
       const endpoint = accessType === 'survey' 
-        ? 'http://localhost:3000/api/admin/access/survey/revoke' 
-        : 'http://localhost:3000/api/admin/access/file/revoke';
+        ? 'http://localhost:8000/api/admin/access/survey/revoke' 
+        : 'http://localhost:8000/api/admin/access/file/revoke';
 
       const payload = accessType === 'survey' 
         ? { userId: user.id, surveyId: itemId }
@@ -416,8 +429,8 @@ export const UserEdit = () => {
 
     try {
       const endpoint = type === 'survey' 
-        ? 'http://localhost:3000/api/admin/access/survey/grant' 
-        : 'http://localhost:3000/api/admin/access/file/grant';
+        ? 'http://localhost:8000/api/admin/access/survey/grant' 
+        : 'http://localhost:8000/api/admin/access/file/grant';
 
       const payload = type === 'survey' 
         ? {
@@ -541,7 +554,7 @@ export const UserEdit = () => {
 
   const resetGrantAccessForm = () => {
     setSelectedSurveyId('');
-    setSelectedFileId('');
+    setSelectedFileIds([]);
     setSelectedAccessType('read');
     setExpiresAt('');
   };
@@ -549,7 +562,7 @@ export const UserEdit = () => {
   const handleQuickGrant = () => {
     if (quickGrantSurvey) {
       setSelectedSurveyId(quickGrantSurvey);
-      setGrantAccessType('survey');
+      setSelectedFileIds([]);
       setSelectedAccessType('read');
       handleGrantAccess();
       setQuickGrantSurvey('');
@@ -677,17 +690,15 @@ export const UserEdit = () => {
       {/* Grant Access Dialog */}
       <GrantAccessDialog
         isOpen={isGrantAccessOpen}
-        grantAccessType={grantAccessType}
         selectedAccessType={selectedAccessType}
         selectedSurveyId={selectedSurveyId}
-        selectedFileId={selectedFileId}
+        selectedFileIds={selectedFileIds}
         expiresAt={expiresAt}
         surveys={surveys}
         onClose={() => setIsGrantAccessOpen(false)}
-        onGrantAccessTypeChange={setGrantAccessType}
         onAccessTypeChange={setSelectedAccessType}
         onSurveyIdChange={setSelectedSurveyId}
-        onFileIdChange={setSelectedFileId}
+        onFileIdsChange={setSelectedFileIds}
         onExpiresAtChange={setExpiresAt}
         onGrantAccess={handleGrantAccess}
       />

@@ -31,37 +31,53 @@ interface Survey {
 
 interface GrantAccessDialogProps {
   isOpen: boolean;
-  grantAccessType: 'survey' | 'file';
   selectedAccessType: 'read' | 'write' | 'admin';
   selectedSurveyId: string;
-  selectedFileId: string;
+  selectedFileIds: string[];
   expiresAt: string;
   surveys: Survey[];
   onClose: () => void;
-  onGrantAccessTypeChange: (type: 'survey' | 'file') => void;
   onAccessTypeChange: (type: 'read' | 'write' | 'admin') => void;
   onSurveyIdChange: (surveyId: string) => void;
-  onFileIdChange: (fileId: string) => void;
+  onFileIdsChange: (fileIds: string[]) => void;
   onExpiresAtChange: (expiresAt: string) => void;
   onGrantAccess: () => Promise<void>;
 }
 
 const GrantAccessDialog: React.FC<GrantAccessDialogProps> = ({
   isOpen,
-  grantAccessType,
   selectedAccessType,
   selectedSurveyId,
-  selectedFileId,
+  selectedFileIds,
   expiresAt,
   surveys,
   onClose,
-  onGrantAccessTypeChange,
   onAccessTypeChange,
   onSurveyIdChange,
-  onFileIdChange,
+  onFileIdsChange,
   onExpiresAtChange,
   onGrantAccess
 }) => {
+  const selectedSurvey = surveys.find(s => s.id === selectedSurveyId);
+  
+  const handleFileToggle = (fileId: string) => {
+    if (selectedFileIds.includes(fileId)) {
+      onFileIdsChange(selectedFileIds.filter(id => id !== fileId));
+    } else {
+      onFileIdsChange([...selectedFileIds, fileId]);
+    }
+  };
+
+  const handleSelectAllFiles = () => {
+    if (selectedSurvey) {
+      const allFileIds = selectedSurvey.survey_files.map(f => f.id);
+      onFileIdsChange(allFileIds);
+    }
+  };
+
+  const handleDeselectAllFiles = () => {
+    onFileIdsChange([]);
+  };
   if (!isOpen) return null;
 
   return (
@@ -88,27 +104,19 @@ const GrantAccessDialog: React.FC<GrantAccessDialogProps> = ({
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label className="text-sm font-medium text-gray-300 mb-2 block">Access Type</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={grantAccessType === 'survey' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => onGrantAccessTypeChange('survey')}
-                  className="text-xs"
-                >
-                  <Database className="h-4 w-4 mr-1" />
-                  Survey
-                </Button>
-                <Button
-                  variant={grantAccessType === 'file' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => onGrantAccessTypeChange('file')}
-                  className="text-xs"
-                >
-                  <FileText className="h-4 w-4 mr-1" />
-                  File
-                </Button>
-              </div>
+              <Label className="text-sm font-medium text-gray-300 mb-2 block">Survey</Label>
+              <Select value={selectedSurveyId} onValueChange={onSurveyIdChange}>
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue placeholder="Select a survey" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-600">
+                  {surveys.map((survey) => (
+                    <SelectItem key={survey.id} value={survey.id}>
+                      {survey.title} ({survey.category}) - {survey.survey_files?.length || 0} files
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -143,41 +151,63 @@ const GrantAccessDialog: React.FC<GrantAccessDialogProps> = ({
               </Select>
             </div>
 
-            {grantAccessType === 'survey' && (
+            {selectedSurvey && selectedSurvey.survey_files && selectedSurvey.survey_files.length > 0 && (
               <div>
-                <Label className="text-sm font-medium text-gray-300 mb-2 block">Survey</Label>
-                <Select value={selectedSurveyId} onValueChange={onSurveyIdChange}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600">
-                    <SelectValue placeholder="Select a survey" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600">
-                    {surveys.map((survey) => (
-                      <SelectItem key={survey.id} value={survey.id}>
-                        {survey.title} ({survey.category})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {grantAccessType === 'file' && (
-              <div>
-                <Label className="text-sm font-medium text-gray-300 mb-2 block">File</Label>
-                <Select value={selectedFileId} onValueChange={onFileIdChange}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600">
-                    <SelectValue placeholder="Select a file" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600">
-                    {surveys.flatMap((survey) =>
-                      survey.survey_files.map((file) => (
-                        <SelectItem key={file.id} value={file.id}>
-                          {file.filename} (from {survey.title})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-medium text-gray-300">Files to Grant Access</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllFiles}
+                      className="text-xs text-gray-300 border-gray-600"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAllFiles}
+                      className="text-xs text-gray-300 border-gray-600"
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="max-h-48 overflow-y-auto border border-gray-600 rounded-lg bg-gray-700/30">
+                  {selectedSurvey.survey_files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center gap-3 p-3 border-b border-gray-600 last:border-b-0 hover:bg-gray-600/20"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`file-${file.id}`}
+                        checked={selectedFileIds.includes(file.id)}
+                        onChange={() => handleFileToggle(file.id)}
+                        className="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <label
+                        htmlFor={`file-${file.id}`}
+                        className="flex-1 text-sm text-gray-200 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-green-400" />
+                          {file.filename}
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-2 p-3 bg-blue-600/10 border border-blue-600/20 rounded-lg">
+                  <p className="text-xs text-blue-400">
+                    Survey access will be granted automatically. Selected files: {selectedFileIds.length} of {selectedSurvey.survey_files.length}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -203,8 +233,8 @@ const GrantAccessDialog: React.FC<GrantAccessDialogProps> = ({
               </Button>
               <Button 
                 onClick={onGrantAccess}
-                disabled={!selectedSurveyId && !selectedFileId}
-                className="flex-1 bg-green-600 hover:bg-green-700"
+                disabled={!selectedSurveyId}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
                 Grant Access
               </Button>

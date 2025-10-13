@@ -10,7 +10,7 @@ export interface LLMSettings {
 }
 
 class LLMSettingsAPI {
-  private baseUrl = '/api/llm-settings';
+  private baseUrl = 'http://localhost:8000/api/llm-settings';
 
   // Get authentication token from localStorage
   private async getAuthToken(): Promise<string | null> {
@@ -86,11 +86,18 @@ class LLMSettingsAPI {
   }
 
   /**
-   * Get all LLM settings, optionally filtered by provider
+   * Get all LLM settings, optionally filtered by provider (Admin only)
    */
   async getLLMSettings(provider?: string): Promise<LLMSettings[]> {
     const endpoint = provider ? `?provider=${encodeURIComponent(provider)}` : '';
     return this.makeRequest<LLMSettings[]>(endpoint);
+  }
+
+  /**
+   * Get active LLM settings (available to all authenticated users)
+   */
+  async getActiveLLMSettings(): Promise<LLMSettings[]> {
+    return this.makeRequest<LLMSettings[]>('/active/list');
   }
 
   /**
@@ -192,6 +199,9 @@ export const loadLLMSettings = (provider: string = 'openai') =>
 
 export const getAllLLMSettings = () => 
   llmSettingsAPI.getLLMSettings();
+
+export const getActiveLLMSettings = () => 
+  llmSettingsAPI.getActiveLLMSettings();
 
 export const deleteLLMSettings = (id: string) => 
   llmSettingsAPI.deleteLLMSetting(id);

@@ -73,7 +73,7 @@ const NotificationRequestModal = ({ onNotificationSent }: NotificationRequestMod
     setLoading(true);
 
     try {
-      const response = await authenticatedFetch('http://localhost:3000/api/notifications', {
+      const response = await authenticatedFetch('http://localhost:8000/api/notifications', {
         method: 'POST',
         body: JSON.stringify({
           type: formData.type,
@@ -403,7 +403,7 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
     
     setLoading(true);
     try {
-      const response = await authenticatedFetch('http://localhost:3000/api/notifications/my');
+      const response = await authenticatedFetch('http://localhost:8000/api/notifications/my');
       
       if (!response.ok) {
         throw new Error('Failed to load notifications');
@@ -411,10 +411,6 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
       
       const result = await response.json();
       setNotifications(result.data || []);
-      
-      // Para testar a funcionalidade hierárquica, descomente a linha abaixo e comente a linha acima:
-      // import { mockNotifications } from '@/data/mockNotifications';
-      // setNotifications(mockNotifications);
       
     } catch (error) {
       console.error('Error loading notifications:', error);

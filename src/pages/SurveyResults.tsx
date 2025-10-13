@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,6 +7,7 @@ import AdminSidebar from "@/components/AdminSidebar";
 import UserSidebar from "@/components/UserSidebar";
 import { Survey } from "@/types/survey";
 import { useTranslation } from "@/resources/i18n";
+import { authenticatedFetch } from "@/utils/api";
 
 // New modular components
 import { ChatComponent } from "@/components/survey-results/ChatComponent";
@@ -22,6 +23,9 @@ const SurveyResults = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPreChatModal, setShowPreChatModal] = useState(false);
 
+  // Track loading sessions to prevent duplicates
+  const loadingSessionsRef = useRef<Set<string>>(new Set());
+
   // Hooks
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -33,17 +37,73 @@ const SurveyResults = () => {
     setSelectedPersonalityId(personalityId);
   };
 
-  // Handle URL parameters for chat session loading
+  // Handle URL parameters for chat session loading and survey restoration
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const sessionId = urlParams.get('session');
     
-    if (sessionId) {
+    if (sessionId && !loadingSessionsRef.current.has(sessionId)) {
       // Switch to chat tab when session ID is in URL
       setActiveTab('chat');
       console.log('SurveyResults: detected session ID in URL:', sessionId);
+      
+      // Add to loading set to prevent duplicates
+      loadingSessionsRef.current.add(sessionId);
+      
+      // Load session to get survey information and restore survey selection
+      const loadSessionForSurvey = async () => {
+        try {
+          setIsLoading(true);
+          const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`);
+          if (response.ok) {
+            const sessionData = await response.json();
+            console.log('SurveyResults: loaded session data for survey restoration:', sessionData);
+            
+            // Extract survey_id from session and load the survey
+            if (sessionData.survey_ids && sessionData.survey_ids.length > 0) {
+              const surveyId = sessionData.survey_ids[0];
+              console.log('SurveyResults: restoring survey from session:', surveyId);
+              
+              const surveyResponse = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`);
+              if (surveyResponse.ok) {
+                const surveyData = await surveyResponse.json();
+                console.log('SurveyResults: restored survey data:', surveyData);
+                setSelectedSurvey(surveyData);
+                setSearchTerm(`${surveyData.category} - ${surveyData.filename || surveyData.id}`);
+              } else {
+                console.warn(`SurveyResults: Failed to load survey ${surveyId}, status: ${surveyResponse.status}. User may not have access.`);
+                // Don't set survey if we can't access it
+              }
+            }
+          } else {
+            console.warn('SurveyResults: Session not found, clearing URL parameters');
+            // Clear URL parameter when session is not found to prevent infinite loops
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('session');
+            window.history.replaceState({}, '', newUrl.toString());
+          }
+        } catch (error) {
+          console.error('SurveyResults: Error loading session for survey restoration:', error);
+          // Clear URL parameter on error to prevent infinite loops
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('session');
+          window.history.replaceState({}, '', newUrl.toString());
+        } finally {
+          setIsLoading(false);
+          // Remove from loading set
+          loadingSessionsRef.current.delete(sessionId);
+        }
+      };
+      
+      // Only load if we don't already have a selected survey
+      if (!selectedSurvey) {
+        loadSessionForSurvey();
+      } else {
+        // If we already have a survey, still remove from loading set
+        loadingSessionsRef.current.delete(sessionId);
+      }
     }
-  }, [location.search]);
+  }, [location.search, selectedSurvey]);
 
   // Ensure default tab is selected on mount
   useEffect(() => {

@@ -41,7 +41,7 @@ export const SurveyProvider: React.FC<SurveyProviderProps> = ({ children }) => {
     setError(null);
 
     try {
-      const data = await authenticatedApiRequest('http://localhost:3000/api/surveys/my-surveys');
+      const data = await authenticatedApiRequest('http://localhost:8000/api/surveys/my-surveys');
       
       setSurveys(data || []);
       setLastFetchTime(Date.now());
@@ -56,7 +56,7 @@ export const SurveyProvider: React.FC<SurveyProviderProps> = ({ children }) => {
 
   const refreshSurveys = async () => {
     const { clearCache } = await import('../utils/requestDeduplication');
-    clearCache('user-surveys');
+    clearCache('API-GET-http://localhost:8000/api/surveys/my-surveys');
     setLastFetchTime(0); // Reset cache
     await fetchSurveys(true);
   };

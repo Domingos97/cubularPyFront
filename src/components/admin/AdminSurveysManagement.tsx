@@ -32,7 +32,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
     if (!confirm(t('admin.surveys.confirmDelete'))) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const res = await fetch(`http://localhost:8000/api/surveys/${surveyId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -62,7 +62,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
 
   const handleDownloadSurvey = async (surveyId: string, filename: string) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/surveys/${surveyId}/download`, {
+      const res = await fetch(`http://localhost:8000/api/surveys/${surveyId}/download`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }

@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { authenticatedFetch } from "@/utils/api";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatSessions } from "@/hooks/useChatSessions";
+import { useAuth } from "@/hooks/useAuth";
 import { Send, X, BarChart3, Eye, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MessageDetailsPanel } from "@/components/chat/MessageDetailsPanel";
@@ -52,75 +53,80 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
   // Use ref to track personality updates and prevent loops
   const lastSessionPersonalityRef = useRef<string | null>(null);
+  // Use ref to track failed survey loads and prevent infinite retry loops
+  const failedSurveyLoadsRef = useRef<Set<string>>(new Set());
 
   const isMobile = useIsMobile();
   const { t } = useTranslation();
-  const { chatSessions, currentSession, currentMessages, setCurrentMessages, saveMessage, loadSession, createNewSession, isLoadingSession, loadChatSessions, clearCurrentSession } = useChatSessions();
+  const { chatSessions, currentSession, currentMessages, setCurrentMessages, saveMessage, loadSession, createNewSession, isLoadingSession, loadChatSessions, clearCurrentSession, clearAllSessions } = useChatSessions();
 
-  // Load suggestions when component mounts or survey changes (GET request)
+  // Debug current user
+  const { user } = useAuth();
+
+  // Load suggestions when component mounts or survey changes
   useEffect(() => {
     if (selectedSurvey?.id) {
       loadSuggestions(selectedSurvey.id);
     }
   }, [selectedSurvey?.id, selectedPersonalityId]);
 
-  // Only reload chat sessions when survey changes - keep current session and messages intact
-  useEffect(() => {
-    if (!selectedSurvey) {
-      // Load all sessions when no survey is selected
-      loadChatSessions();
-    } else {
-      // Load only sessions related to the selected survey
-      loadChatSessions(selectedSurvey.id);
-    }
-  }, [selectedSurvey?.id, loadChatSessions]);
-
   // Always update messages when currentSession or currentMessages change
   useEffect(() => {
-
-    if (currentSession?.id) {
-      
+    if (currentSession?.id && currentMessages.length >= 0) {
       const mappedMessages = currentMessages.map((msg, index) => {
-        
-        // Parse data_snapshot if it's a string
-        let parsedDataSnapshot = msg.data_snapshot;
-        if (typeof msg.data_snapshot === 'string' && msg.data_snapshot) {
-          try {
-            parsedDataSnapshot = JSON.parse(msg.data_snapshot);
-          } catch (e) {
-            console.warn(`Failed to parse data_snapshot for message ${index}:`, e);
-            parsedDataSnapshot = null;
+        // Parse data_snapshot - handle both string and object formats
+        let parsedDataSnapshot = null;
+        if (msg.data_snapshot) {
+          if (typeof msg.data_snapshot === 'string') {
+            const snapshotStr = msg.data_snapshot as string;
+            const trimmedSnapshot = snapshotStr.trim();
+            if (trimmedSnapshot) {
+              try {
+                parsedDataSnapshot = JSON.parse(trimmedSnapshot);
+              } catch (e) {
+                console.warn(`Failed to parse data_snapshot string for message ${index}:`, e);
+              }
+            }
+          } else if (typeof msg.data_snapshot === 'object') {
+            parsedDataSnapshot = msg.data_snapshot;
           }
         }
         
-        // Parse confidence if it's a string
-        let parsedConfidence = msg.confidence;
-        if (typeof msg.confidence === 'string' && msg.confidence) {
-          try {
-            parsedConfidence = JSON.parse(msg.confidence);
-          } catch (e) {
-            console.warn(`Failed to parse confidence for message ${index}:`, e);
-            parsedConfidence = null;
+        // Parse confidence - handle both string, number, and object formats
+        let parsedConfidence = null;
+        if (msg.confidence !== null && msg.confidence !== undefined) {
+          if (typeof msg.confidence === 'string') {
+            const confidenceStr = msg.confidence as string;
+            const trimmedConfidence = confidenceStr.trim();
+            if (trimmedConfidence) {
+              try {
+                parsedConfidence = JSON.parse(trimmedConfidence);
+              } catch (e) {
+                console.warn(`Failed to parse confidence string for message ${index}:`, e);
+              }
+            }
+          } else if (typeof msg.confidence === 'number') {
+            parsedConfidence = { 
+              score: msg.confidence, 
+              reliability: msg.confidence > 0.8 ? 'high' : msg.confidence > 0.5 ? 'medium' : 'low'
+            } as const;
+          } else if (typeof msg.confidence === 'object') {
+            parsedConfidence = msg.confidence;
           }
         }
         
-        const mappedMessage = {
+        return {
           id: msg.id,
           content: msg.content,
-          sender: msg.sender,
+          sender: msg.sender as 'user' | 'assistant',
           timestamp: new Date(msg.timestamp),
           dataSnapshot: parsedDataSnapshot,
-          confidence: typeof parsedConfidence === 'number' 
-            ? { score: parsedConfidence, reliability: 'medium' as const }
-            : parsedConfidence
+          confidence: parsedConfidence
         };
-        
-        return mappedMessage;
       });
       
       setMessages(mappedMessages);
     } else {
-      // Clear messages when no session is active
       setMessages([]);
     }
   }, [currentSession?.id, currentMessages]);
@@ -140,6 +146,39 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       onPersonalityChange?.(currentSession.personality_id);
     }
   }, [currentSession?.personality_id, selectedPersonalityId]); // Remove onPersonalityChange from dependencies
+
+  // Update survey when session changes (e.g., when loading from URL on refresh)
+  // Only update if session has survey_ids and we have a valid session
+  useEffect(() => {
+    if (currentSession?.survey_ids?.length > 0 && currentSession.id) {
+      const sessionSurveyId = currentSession.survey_ids[0];
+      // Only update if the survey is different from currently selected and we haven't failed to load it before
+      if (sessionSurveyId !== selectedSurvey?.id && !failedSurveyLoadsRef.current.has(sessionSurveyId)) {
+        console.log('ChatComponent: Updating survey from session:', sessionSurveyId, 'Previous:', selectedSurvey?.id);
+        // Load survey data to update the selected survey
+        const loadSurveyFromSession = async () => {
+          try {
+            const surveyRes = await authenticatedFetch(`http://localhost:8000/api/surveys/${sessionSurveyId}`);
+            if (surveyRes.ok) {
+              const surveyData = await surveyRes.json();
+              onSurveyChange(surveyData);
+              // Remove from failed loads if it succeeds
+              failedSurveyLoadsRef.current.delete(sessionSurveyId);
+            } else {
+              console.warn(`ChatComponent: Failed to load survey ${sessionSurveyId}, status: ${surveyRes.status}`);
+              // Mark as failed to prevent retry loops
+              failedSurveyLoadsRef.current.add(sessionSurveyId);
+            }
+          } catch (error) {
+            console.error('Error loading survey for session:', error);
+            // Mark as failed to prevent retry loops
+            failedSurveyLoadsRef.current.add(sessionSurveyId);
+          }
+        };
+        loadSurveyFromSession();
+      }
+    }
+  }, [currentSession?.survey_ids, currentSession?.id, selectedSurvey?.id]); // Add currentSession.id to dependencies
 
   // Handle session deletion - clear UI state when session becomes null
   useEffect(() => {
@@ -161,7 +200,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   const loadSuggestions = async (surveyId: string) => {
     try {
       // Use GET request to fetch existing suggestions instead of generating new ones
-      const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
         method: 'GET'
       });
       
@@ -203,7 +242,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       }
 
 
-      // Add user message
+      // Add user message to local UI state immediately for responsiveness
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         content,
@@ -244,7 +283,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         chatRequestBody.personalityId = selectedPersonalityId;
       }
 
-      const response = await authenticatedFetch('http://localhost:3000/api/surveys/semantic-chat', {
+      const response = await authenticatedFetch('http://localhost:8000/api/surveys/semantic-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(chatRequestBody)
@@ -259,8 +298,10 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       const data = await response.json();
 
       // If a new session was created, load it
+      let sessionForSaving = currentSession?.id;
       if (data.sessionId && data.sessionId !== currentSession?.id) {
         await loadSession(data.sessionId);
+        sessionForSaving = data.sessionId;
       }
 
       const assistantResponse: Message = {
@@ -277,19 +318,51 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       };
 
 
-      // Remove typing indicator and add response
+      // Remove typing indicator and add response to local UI
       setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([assistantResponse]));
+
+      // Save both user and assistant messages to database (this will also update currentMessages)
+      try {
+        if (sessionForSaving) {
+          // Save user message
+          await saveMessage(content, 'user', undefined, sessionForSaving);
+          
+          // Save assistant message
+          await saveMessage(
+            assistantResponse.content, 
+            'assistant', 
+            assistantResponse.dataSnapshot, 
+            sessionForSaving,
+            assistantResponse.confidence?.score,
+            selectedPersonalityId
+          );
+          
+          console.log('✅ Messages saved successfully to database');
+        }
+      } catch (error) {
+        console.error('❌ Error saving messages to database:', error);
+      }
 
       setInputMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      // Remove typing indicator and show error
+      // Remove typing indicator and show error in local UI
       setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([{
         id: `error-${Date.now()}`,
         content: t('surveyResults.chat.errorOccurred'),
         sender: "assistant",
         timestamp: new Date()
       }]));
+
+      // Still save the user message even if API call failed
+      try {
+        if (currentSession?.id) {
+          await saveMessage(content, 'user', undefined, currentSession.id);
+          console.log('✅ User message saved despite API failure');
+        }
+      } catch (saveError) {
+        console.error('❌ Error saving user message after API failure:', saveError);
+      }
     } finally {
       setIsSending(false);
       setClickedSuggestion(null);
@@ -337,6 +410,10 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         selectedFiles={selectedFiles}
         onNewChat={async (sessionId) => {
           await loadSession(sessionId);
+          // Reload sessions to show the new one (only if we have a survey selected)
+          if (selectedSurvey?.id) {
+            loadChatSessions(selectedSurvey.id);
+          }
         }}
         onChatSelect={async (sessionId) => {
           try {
@@ -347,16 +424,26 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
     
             if (sessionData?.session) {
               // Update the selected survey if the session has different surveys
-              if (sessionData.session.survey_ids?.length > 0 && sessionData.session.survey_ids[0] !== selectedSurvey?.id) {
+              if (sessionData.session.survey_ids?.length > 0 && 
+                  sessionData.session.survey_ids[0] !== selectedSurvey?.id &&
+                  !failedSurveyLoadsRef.current.has(sessionData.session.survey_ids[0])) {
                 // Load survey data to update the selected survey
                 try {
-                  const surveyRes = await fetch(`http://localhost:3000/api/surveys/${sessionData.session.survey_ids[0]}`);
+                  const surveyRes = await authenticatedFetch(`http://localhost:8000/api/surveys/${sessionData.session.survey_ids[0]}`);
                   if (surveyRes.ok) {
                     const surveyData = await surveyRes.json();
                     onSurveyChange(surveyData);
+                    // Remove from failed loads if it succeeds
+                    failedSurveyLoadsRef.current.delete(sessionData.session.survey_ids[0]);
+                  } else {
+                    console.warn(`ChatComponent onChatSelect: Failed to load survey ${sessionData.session.survey_ids[0]}, status: ${surveyRes.status}`);
+                    // Mark as failed to prevent retry loops
+                    failedSurveyLoadsRef.current.add(sessionData.session.survey_ids[0]);
                   }
                 } catch (error) {
                   console.error('Error loading survey for session:', error);
+                  // Mark as failed to prevent retry loops
+                  failedSurveyLoadsRef.current.add(sessionData.session.survey_ids[0]);
                 }
               }
               
@@ -511,67 +598,83 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
             </div>
           ) : (
             // Regular messages display
-            messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div 
-                  className={`max-w-[80%] p-4 rounded-lg transition-all duration-200 ${
-                    message.sender === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : `bg-gray-800 text-gray-100 ${
-                          (message.dataSnapshot || message.confidence) && !showDataInline
-                            ? `cursor-pointer hover:bg-gray-700 hover:shadow-lg border ${
-                                selectedMessage?.id === message.id 
-                                  ? 'border-blue-500 bg-gray-700/80 shadow-blue-500/20' 
-                                  : 'border-gray-700 hover:border-gray-600'
-                              }` 
-                            : ''
-                        }`
-                  } ${selectedMessage?.id === message.id && !showDataInline ? 'ring-2 ring-blue-500/30' : ''}`}
-                  onClick={() => {
-                    // Only allow panel interaction if in panel mode (not inline mode)
-                    if (message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && !showDataInline) {
-                      setSelectedMessage(selectedMessage?.id === message.id ? null : message);
-                    }
-                  }}
-                >
-                  <p className="whitespace-pre-wrap mb-2">{message.content}</p>
-                  {/* Inline Data Snapshot - Show when inline mode is enabled */}
-                  {showDataInline && message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && (
-                    <div className="mt-3 animate-fade-in">
-                      <div className="bg-gray-900/80 border border-blue-600 rounded-lg p-4 shadow-lg flex flex-col gap-2">
-                        <div className="flex items-center gap-2 mb-2">
-                          <BarChart3 className="h-4 w-4 text-blue-400" />
-                          <span className="font-semibold text-blue-300 text-sm">{t('surveyResults.chat.aiDataAnalysis')}</span>
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`flex ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 max-w-[85%]`}>
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
+                      message.sender === 'user' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-blue-400 border border-gray-600'
+                    }`}>
+                      {message.sender === 'user' ? 'U' : 'AI'}
+                    </div>
+                    
+                    {/* Message Content */}
+                    <div 
+                      className={`p-4 rounded-lg transition-all duration-200 ${
+                        message.sender === 'user' 
+                          ? 'bg-blue-600 text-white rounded-br-sm shadow-lg' 
+                          : `bg-gray-800 text-gray-100 rounded-bl-sm border border-gray-700 ${
+                              (message.dataSnapshot || message.confidence) && !showDataInline
+                                ? `cursor-pointer hover:bg-gray-700 hover:shadow-lg hover:border-gray-600 ${
+                                    selectedMessage?.id === message.id 
+                                      ? 'border-blue-500 bg-gray-700/80 shadow-blue-500/20 ring-2 ring-blue-500/30' 
+                                      : ''
+                                  }` 
+                                : ''
+                            }`
+                      }`}
+                      onClick={() => {
+                        // Only allow panel interaction if in panel mode (not inline mode)
+                        if (message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && !showDataInline) {
+                          setSelectedMessage(selectedMessage?.id === message.id ? null : message);
+                        }
+                      }}
+                    >
+                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      
+                      {/* Inline Data Snapshot - Show when inline mode is enabled */}
+                      {showDataInline && message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && (
+                        <div className="mt-4 animate-fade-in">
+                          <div className="bg-gray-900/80 border border-blue-600 rounded-lg p-4 shadow-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <BarChart3 className="h-4 w-4 text-blue-400" />
+                              <span className="font-semibold text-blue-300 text-sm">{t('surveyResults.chat.aiDataAnalysis')}</span>
+                            </div>
+                            <InlineDataSnapshot 
+                              dataSnapshot={message.dataSnapshot}
+                              confidence={message.confidence}
+                            />
+                          </div>
                         </div>
-                        <InlineDataSnapshot 
-                          dataSnapshot={message.dataSnapshot}
-                          confidence={message.confidence}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {/* Panel Mode Footer - Show when panel mode is enabled and has data */}
-                  {!showDataInline && (message.dataSnapshot || message.confidence) && message.sender === 'assistant' && (
-                    <div className="mt-3 pt-2 border-t border-gray-600 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        {message.confidence && (
-                          <span className="flex items-center gap-1">
-                            📊 {t('surveyResults.chat.confidence')}: {Math.round(message.confidence.score * 100)}%
+                      )}
+                      
+                      {/* Panel Mode Footer - Show when panel mode is enabled and has data */}
+                      {!showDataInline && (message.dataSnapshot || message.confidence) && message.sender === 'assistant' && (
+                        <div className="mt-3 pt-3 border-t border-gray-600 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            {message.confidence && (
+                              <span className="flex items-center gap-1">
+                                📊 {t('surveyResults.chat.confidence')}: {Math.round((message.confidence.score || 0) * 100)}%
+                              </span>
+                            )}
+                            {message.dataSnapshot && message.confidence && <span>•</span>}
+                            {message.dataSnapshot && (
+                              <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-blue-400 font-medium">
+                            {selectedMessage?.id === message.id ? t('surveyResults.chat.panelOpen') : t('surveyResults.chat.clickToViewDetails')}
                           </span>
-                        )}
-                        {message.dataSnapshot && message.confidence && <span>•</span>}
-                        {message.dataSnapshot && (
-                          <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-blue-400">
-                        {selectedMessage?.id === message.id ? t('surveyResults.chat.panelOpen') : t('surveyResults.chat.clickToViewDetails')}
-                      </span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
         

@@ -82,7 +82,7 @@ const NotificationsBell = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const data = await authenticatedApiRequest<{data: NotificationWithUser[]}>('http://localhost:3000/api/notifications/admin/all?limit=100');
+      const data = await authenticatedApiRequest<{data: NotificationWithUser[]}>('http://localhost:8000/api/notifications/admin/all?limit=100');
       
       const allNotifications = data.data || [];
       

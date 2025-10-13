@@ -35,7 +35,7 @@ export const WelcomePopup = () => {
   const updateWelcomePopupPreference = async (dismissed: boolean) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3000/api/users/welcome-popup-dismissed', {
+      const response = await fetch('http://localhost:8000/api/users/welcome-popup-dismissed', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

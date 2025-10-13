@@ -53,7 +53,7 @@ export const PlanTab = ({ className }: PlanTabProps) => {
   const fetchCurrentPlan = async () => {
     try {
       setIsLoading(true);
-      const response = await authenticatedFetch('/api/user/plan');
+      const response = await authenticatedFetch('http://localhost:8000/api/user/plan');
       if (response.ok) {
         const data = await response.json();
         setCurrentPlan(data);
@@ -102,7 +102,7 @@ export const PlanTab = ({ className }: PlanTabProps) => {
         billing: 'monthly'
       };
 
-      const response = await authenticatedFetch('/api/user/plan/upgrade', {
+      const response = await authenticatedFetch('http://localhost:8000/api/user/plan/upgrade', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

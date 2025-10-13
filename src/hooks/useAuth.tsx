@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (email: string, password: string) => {
     try {
       
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch('http://localhost:8000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // Use only JWT token data - simple and direct
         const userData = { 
-          id: decoded.id, 
+          id: decoded.sub || decoded.id,  // JWT standard uses 'sub' for subject (user ID)
           email: decoded.email,
           role: userRole,
           language_preference: decoded.language || 'en',
@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       // Register API call
       
-      const response = await fetch('http://localhost:3000/api/auth/register', {
+      const response = await fetch('http://localhost:8000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, username, password })
@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     // Call logout endpoint to revoke tokens
     try {
-      await fetch('http://localhost:3000/api/auth/logout', {
+      await fetch('http://localhost:8000/api/auth/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken })
@@ -127,7 +127,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch('http://localhost:3000/api/auth/refresh', {
+      const response = await fetch('http://localhost:8000/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken })
@@ -193,7 +193,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // Debug: Log decoded token data
           console.log('DEBUG - Token decoded:', { 
-            id: decoded.id, 
+            id: decoded.sub || decoded.id, 
             email: decoded.email, 
             role: decoded.role,
             language: decoded.language,
@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // Use only JWT token data - simple and direct
           const userData = { 
-            id: decoded.id, 
+            id: decoded.sub || decoded.id,  // JWT standard uses 'sub' for subject (user ID)
             email: decoded.email,
             role: decoded.role,
             language_preference: decoded.language || 'en',

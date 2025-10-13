@@ -101,8 +101,50 @@ export const MessageDetailsPanel: React.FC<MessageDetailsPanelProps> = ({
         return (
           <div className="space-y-2">
             {value.map((item, index) => (
-              <div key={index} className="bg-gray-900/50 rounded p-2 border-l-2 border-blue-400/30">
-                <span className="text-xs text-gray-100 leading-relaxed">{String(item)}</span>
+              <div key={index} className="bg-gray-900/50 rounded p-3 border-l-2 border-blue-400/30">
+                {typeof item === 'object' && item !== null ? (
+                  // For stats objects, extract and display just the items array
+                  item.items && Array.isArray(item.items) ? (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-blue-300 mb-2">
+                        {item.category || 'Insights'}
+                      </div>
+                      {item.items.map((insight: any, insightIndex: number) => (
+                        <div key={insightIndex} className="bg-gray-800/50 rounded p-2 space-y-1">
+                          <div className="text-sm text-gray-100 font-medium">
+                            {insight.label}
+                          </div>
+                          <div className="text-xs text-gray-300 flex items-center gap-2">
+                            <span>{insight.percentage}%</span>
+                            {insight.count && <span>({insight.count} responses)</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // For other objects, show key-value pairs but skip metadata
+                    <div className="space-y-2">
+                      {Object.entries(item).map(([itemKey, itemVal]) => {
+                        // Skip metadata fields that users don't need to see
+                        if (['icon', 'category'].includes(itemKey)) return null;
+                        
+                        return (
+                          <div key={itemKey} className="space-y-1">
+                            <div className="text-xs font-medium text-blue-300 capitalize">
+                              {itemKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                            </div>
+                            <div className="text-xs text-gray-100 leading-relaxed">
+                              {typeof itemVal === 'object' ? JSON.stringify(itemVal, null, 2) : String(itemVal)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  // Render simple items as strings
+                  <span className="text-xs text-gray-100 leading-relaxed">{String(item)}</span>
+                )}
               </div>
             ))}
           </div>
@@ -118,7 +160,13 @@ export const MessageDetailsPanel: React.FC<MessageDetailsPanelProps> = ({
                 {subKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
               </div>
               <div className="bg-gray-900/50 rounded p-2 ml-2 border-l-2 border-gray-600">
-                <span className="text-xs text-gray-100 leading-relaxed">{String(val)}</span>
+                <span className="text-xs text-gray-100 leading-relaxed">
+                  {typeof val === 'object' ? (
+                    <pre className="whitespace-pre-wrap">{JSON.stringify(val, null, 2)}</pre>
+                  ) : (
+                    String(val)
+                  )}
+                </span>
               </div>
             </div>
           ))}

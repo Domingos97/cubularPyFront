@@ -21,6 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
+import { authenticatedApiRequest } from '@/utils/api';
 
 interface ModuleConfiguration {
   id: string;
@@ -137,21 +138,13 @@ export const ModelConfigurationPanel = () => {
 
   const loadLlmSettings = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) throw new Error('No authentication token');
-
-      const response = await fetch('http://localhost:3000/api/module-configurations/llm-settings', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch LLM settings');
-      const data = await response.json();
-      setLlmSettings(data.llmSettings || []);
+      console.log('🔄 Loading LLM settings...');
+      const data = await authenticatedApiRequest<LlmSetting[]>('http://localhost:8000/api/llm-settings');
+      console.log('✅ LLM settings loaded:', data);
+      setLlmSettings(data || []);
+      console.log('✅ LLM settings state updated:', data?.length || 0, 'items');
     } catch (error) {
-      console.error('Error loading LLM settings:', error);
+      console.error('❌ Error loading LLM settings:', error);
       toast({
         title: t('admin.toast.error'),
         description: t('admin.aiModels.errors.loadLlmSettings'),
@@ -162,18 +155,7 @@ export const ModelConfigurationPanel = () => {
 
   const loadPersonalities = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) throw new Error('No authentication token');
-
-      const response = await fetch('http://localhost:3000/api/personalities', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch personalities');
-      const data = await response.json();
+      const data = await authenticatedApiRequest<any[]>('http://localhost:8000/api/personalities');
       setPersonalities(data || []);
     } catch (error) {
       console.error('Error loading personalities:', error);
@@ -187,26 +169,18 @@ export const ModelConfigurationPanel = () => {
 
   const loadConfigurations = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) throw new Error('No authentication token');
-
-      const response = await fetch('http://localhost:3000/api/module-configurations', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch configurations');
-      const data = await response.json();
+      console.log('🔄 Loading module configurations...');
+      const data = await authenticatedApiRequest<ModuleConfiguration[]>('http://localhost:8000/api/module-configurations');
+      console.log('✅ Module configurations loaded:', data);
       
-      setConfigurations(data.configurations || []);
+      setConfigurations(data || []);
+      console.log('✅ Module configurations state updated:', data?.length || 0, 'items');
       
       // Initialize form data with existing configurations or defaults
       // This will be called again after modules are loaded to ensure proper initialization
-      initializeFormData(data.configurations || []);
+      initializeFormData(data || []);
     } catch (error) {
-      console.error('Error loading configurations:', error);
+      console.error('❌ Error loading configurations:', error);
       toast({
         title: t('admin.toast.error'),
         description: t('admin.aiModels.errors.loadConfigurations'),
@@ -455,9 +429,6 @@ export const ModelConfigurationPanel = () => {
   const saveConfiguration = async (moduleName: string) => {
     try {
       setSaving(moduleName);
-      
-      const token = localStorage.getItem('authToken');
-      if (!token) throw new Error('No authentication token');
 
       const config = formData[moduleName];
       
@@ -496,21 +467,10 @@ export const ModelConfigurationPanel = () => {
         ai_personality_id: config.ai_personality_id === 'none' ? null : config.ai_personality_id
       };
 
-      const response = await fetch('http://localhost:3000/api/module-configurations', {
+      const data = await authenticatedApiRequest<ModuleConfiguration>('http://localhost:8000/api/module-configurations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save configuration');
-      }
-
-      const data = await response.json();
       
       // Update local state
       setConfigurations(prev => {
@@ -520,10 +480,10 @@ export const ModelConfigurationPanel = () => {
         
         if (existingIndex >= 0) {
           const updated = [...prev];
-          updated[existingIndex] = data.configuration;
+          updated[existingIndex] = data;
           return updated;
         } else {
-          return [...prev, data.configuration];
+          return [...prev, data];
         }
       });
 

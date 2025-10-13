@@ -86,7 +86,7 @@ const UserRequests = ({ userId }: UserRequestsProps) => {
   const fetchUserNotifications = async () => {
     try {
       setLoading(true);
-      const data = await authenticatedApiRequest<{data: UserNotification[]}>('http://localhost:3000/api/notifications/admin/all?limit=1000');
+      const data = await authenticatedApiRequest<{data: UserNotification[]}>('http://localhost:8000/api/notifications/admin/all?limit=1000');
       
       // Filter notifications for this specific user
       const userNotifications = (data.data || []).filter((n: UserNotification) => n.user_id === userId);
@@ -120,7 +120,7 @@ const UserRequests = ({ userId }: UserRequestsProps) => {
       if (newStatus) updateData.status = newStatus;
       if (adminResponse.trim()) updateData.admin_response = adminResponse.trim();
 
-      const response = await authenticatedFetch(`http://localhost:3000/api/notifications/${notificationId}`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/notifications/${notificationId}`, {
         method: 'PUT',
         body: JSON.stringify(updateData)
       });

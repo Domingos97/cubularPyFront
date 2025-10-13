@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Plus, Edit, Trash2, Eye, EyeOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from '@/resources/i18n';
+import { authenticatedApiRequest } from '@/utils/api';
 import type { AIPersonality } from '@/hooks/usePersonalities';
 
 
@@ -31,14 +32,7 @@ export const AIPersonalityManager = () => {
 
   const loadPersonalities = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3000/api/personalities', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to load personalities');
-      const data = await response.json();
+      const data = await authenticatedApiRequest<AIPersonality[]>('http://localhost:8000/api/personalities');
       setPersonalities(data);
     } catch (error) {
       console.error('Error loading personalities:', error);
@@ -61,15 +55,10 @@ export const AIPersonalityManager = () => {
     if (!personalityToDelete) return;
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:3000/api/personalities/${personalityToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${personalityToDelete}`, {
+        method: 'DELETE'
       });
 
-      if (!response.ok) throw new Error('Failed to delete');
       toast.success(t('admin.personalities.deleteSuccess'));
       loadPersonalities();
       setDeleteConfirmOpen(false);
@@ -82,17 +71,10 @@ export const AIPersonalityManager = () => {
 
   const toggleActive = async (id: string, isActive: boolean) => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:3000/api/personalities/${id}`, {
+      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ is_active: !isActive }),
+        body: JSON.stringify({ is_active: !isActive })
       });
-      
-      if (!response.ok) throw new Error('Failed to update personality status');
       
       // Update local state immediately instead of reloading
       setPersonalities(prev => 
@@ -113,12 +95,8 @@ export const AIPersonalityManager = () => {
 
   const setAsDefault = async (id: string) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:3000/api/personalities/${id}/set-default`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${id}/set-default`, {
+        method: 'POST'
       });
       toast.success(t('admin.personalities.defaultUpdated'));
       loadPersonalities();

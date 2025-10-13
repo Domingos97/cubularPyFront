@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSurveys } from '@/contexts/SurveyContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,6 +38,7 @@ interface Survey {
 
 const Admin = () => {
   const { user, logout } = useAuth();
+  const { refreshSurveys } = useSurveys();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -44,6 +46,13 @@ const Admin = () => {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  console.log('🔍 ADMIN COMPONENT DEBUG:', { 
+    hasUser: !!user,
+    userRole: user?.role, 
+    loading: loading,
+    error: error
+  });
 
   useEffect(() => {
     fetchData();
@@ -55,12 +64,12 @@ const Admin = () => {
       setError('');
 
       // Fetch users
-      const usersData = await authenticatedApiRequest<User[]>('http://localhost:3000/api/users');
+      const usersData = await authenticatedApiRequest<User[]>('http://localhost:8000/api/users');
       setUsers(usersData || []);
 
       // Fetch surveys - using admin access endpoint for all surveys and files
-      const surveysData = await authenticatedApiRequest<Survey[]>('http://localhost:3000/api/admin/access/surveys-files');
-      setSurveys(surveysData || []);
+      const surveysResponse = await authenticatedApiRequest<{surveys: Survey[]}>('http://localhost:8000/api/admin/access/surveys-files');
+      setSurveys(surveysResponse?.surveys || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setError(t('admin.failedToLoadData'));
@@ -69,15 +78,24 @@ const Admin = () => {
     }
   };
 
+  // Helper to clear surveys cache and refresh data
+  const clearCacheAndRefetch = async () => {
+    const { clearCache } = await import('../utils/requestDeduplication');
+    clearCache('API-GET-http://localhost:8000/api/admin/access/surveys-files');
+    // Also refresh the SurveyContext so the Index page shows updated surveys
+    await refreshSurveys();
+    await fetchData();
+  };
+
   // Enhanced survey deletion handler with optimistic updates
-  const handleSurveyDeleted = (surveyId?: string) => {
+  const handleSurveyDeleted = async (surveyId?: string) => {
     if (surveyId) {
       // Optimistically remove the survey from the local state immediately
       setSurveys(prev => prev.filter(survey => survey.id !== surveyId));
     }
     
-    // Also refresh data from server as a backup (in case of inconsistencies)
-    fetchData();
+    // Clear cache and refresh data from server
+    await clearCacheAndRefetch();
   };
 
   const handleLogout = async () => {
@@ -185,7 +203,7 @@ const Admin = () => {
           <TabsContent value="surveys">
             <AdminSurveysManagement 
               surveys={surveys} 
-              onSurveyAdded={fetchData} 
+              onSurveyAdded={clearCacheAndRefetch} 
               onSurveyDeleted={handleSurveyDeleted} 
             />
           </TabsContent>

@@ -31,7 +31,7 @@ export const refreshAccessToken = async (): Promise<string> => {
     throw new Error('No refresh token available');
   }
 
-  const response = await fetch('http://localhost:3000/api/auth/refresh', {
+  const response = await fetch('http://localhost:8000/api/auth/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken })
@@ -167,7 +167,7 @@ export const authenticatedApiRequest = async <T = any>(url: string, options: Req
  * Fetch all supported languages from the backend
  */
 export const fetchSupportedLanguages = async (): Promise<SupportedLanguagesResponse> => {
-  const response = await authenticatedFetch('http://localhost:3000/api/languages/supported');
+  const response = await authenticatedFetch('http://localhost:8000/api/languages/supported');
   if (!response.ok) {
     throw new Error(`Failed to fetch supported languages: ${response.status}`);
   }
@@ -178,18 +178,19 @@ export const fetchSupportedLanguages = async (): Promise<SupportedLanguagesRespo
  * Fetch enabled languages only
  */
 export const fetchEnabledLanguages = async (): Promise<SupportedLanguage[]> => {
-  const response = await authenticatedFetch('http://localhost:3000/api/languages/enabled');
+  const response = await authenticatedFetch('http://localhost:8000/api/languages/enabled');
   if (!response.ok) {
     throw new Error(`Failed to fetch enabled languages: ${response.status}`);
   }
-  return response.json();
+  const data = await response.json();
+  return data.languages || [];
 };
 
 /**
  * Get user settings
  */
 export const getUserSettings = async (userId: string): Promise<any> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`);
+  const response = await authenticatedFetch(`http://localhost:8000/api/users/${userId}/settings`);
   if (!response.ok) {
     throw new Error(`Failed to fetch user settings: ${response.status}`);
   }
@@ -225,7 +226,7 @@ export const updateUserLanguagePreference = async (languageCode: string): Promis
       language_preference: languageCode
     };
     
-    const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`, {
+    const response = await authenticatedFetch(`http://localhost:8000/api/users/${userId}/settings`, {
       method: 'PUT',
       body: JSON.stringify(updatedSettings)
     });
@@ -236,7 +237,7 @@ export const updateUserLanguagePreference = async (languageCode: string): Promis
   } catch (fetchError) {
     // If getting current settings fails, try to update with just the language preference
     console.warn('Could not fetch current settings, updating language preference only:', fetchError);
-    const response = await authenticatedFetch(`http://localhost:3000/api/users/${userId}/settings`, {
+    const response = await authenticatedFetch(`http://localhost:8000/api/users/${userId}/settings`, {
       method: 'PUT',
       body: JSON.stringify({ language_preference: languageCode })
     });
@@ -262,7 +263,7 @@ export const fetchPromptTranslations = async (
   }
   
   const response = await authenticatedFetch(
-    `http://localhost:3000/api/prompts/translations?${params.toString()}`
+    `http://localhost:8000/api/prompts/translations?${params.toString()}`
   );
   if (!response.ok) {
     throw new Error(`Failed to fetch prompt translations: ${response.status}`);
@@ -276,7 +277,7 @@ export const fetchPromptTranslations = async (
 export const createPromptTranslation = async (
   data: CreatePromptTranslationRequest
 ): Promise<PromptTranslation> => {
-  const response = await authenticatedFetch('http://localhost:3000/api/prompts/translations', {
+  const response = await authenticatedFetch('http://localhost:8000/api/prompts/translations', {
     method: 'POST',
     body: JSON.stringify(data)
   });
@@ -293,7 +294,7 @@ export const updatePromptTranslation = async (
   translationId: string,
   data: UpdatePromptTranslationRequest
 ): Promise<PromptTranslation> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/prompts/translations/${translationId}`, {
+  const response = await authenticatedFetch(`http://localhost:8000/api/prompts/translations/${translationId}`, {
     method: 'PUT',
     body: JSON.stringify(data)
   });
@@ -307,7 +308,7 @@ export const updatePromptTranslation = async (
  * Delete a prompt translation
  */
 export const deletePromptTranslation = async (translationId: string): Promise<void> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/prompts/translations/${translationId}`, {
+  const response = await authenticatedFetch(`http://localhost:8000/api/prompts/translations/${translationId}`, {
     method: 'DELETE'
   });
   if (!response.ok) {
@@ -319,7 +320,7 @@ export const deletePromptTranslation = async (translationId: string): Promise<vo
  * Update user profile
  */
 export const updateUserProfile = async (profileData: { username?: string; email?: string; [key: string]: any }): Promise<any> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/users/profile`, {
+  const response = await authenticatedFetch(`http://localhost:8000/api/users/profile`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -343,7 +344,7 @@ export const updateUserProfile = async (profileData: { username?: string; email?
  * Mark a specific notification as read
  */
 export const markNotificationAsRead = async (notificationId: string): Promise<any> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/${notificationId}/read`, {
+  const response = await authenticatedFetch(`http://localhost:8000/api/notifications/my/${notificationId}/read`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -362,7 +363,7 @@ export const markNotificationAsRead = async (notificationId: string): Promise<an
  * Mark all notifications as read for the current user
  */
 export const markAllNotificationsAsRead = async (): Promise<any> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/read-all`, {
+  const response = await authenticatedFetch(`http://localhost:8000/api/notifications/my/read-all`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -381,7 +382,7 @@ export const markAllNotificationsAsRead = async (): Promise<any> => {
  * Get unread notification count for the current user
  */
 export const getUnreadNotificationCount = async (): Promise<{ unread_count: number }> => {
-  const response = await authenticatedFetch(`http://localhost:3000/api/notifications/my/unread-count`);
+  const response = await authenticatedFetch(`http://localhost:8000/api/notifications/my/unread-count`);
   
   if (!response.ok) {
     const errorData = await response.json();

@@ -68,7 +68,7 @@ const AdminPlansManagement: React.FC = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const response = await authenticatedFetch('http://localhost:3000/api/plans');
+      const response = await authenticatedFetch('http://localhost:8000/api/plans');
       if (response.ok) {
         const data = await response.json();
         setPlans(data);
@@ -115,7 +115,7 @@ const AdminPlansManagement: React.FC = () => {
         features: formData.features.split('\n').filter(f => f.trim() !== '')
       };
 
-      const response = await authenticatedFetch('http://localhost:3000/api/plans', {
+      const response = await authenticatedFetch('http://localhost:8000/api/plans', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -170,7 +170,7 @@ const AdminPlansManagement: React.FC = () => {
         features: formData.features.split('\n').filter(f => f.trim() !== '')
       };
 
-      const response = await authenticatedFetch(`http://localhost:3000/api/plans/${editingPlan.id}`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/plans/${editingPlan.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -203,7 +203,7 @@ const AdminPlansManagement: React.FC = () => {
 
   const handleDeletePlan = async (planId: string) => {
     try {
-      const response = await authenticatedFetch(`http://localhost:3000/api/plans/${planId}`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/plans/${planId}`, {
         method: 'DELETE'
       });
 

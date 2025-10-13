@@ -402,7 +402,7 @@ export const SurveyTab: FC = () => {
       formData.append('file', file);
       formData.append('category', categoryInput);
       formData.append('description', descriptionInput);
-      const res = await authenticatedFetch('http://localhost:3000/api/surveys/upload', {
+      const res = await authenticatedFetch('http://localhost:8000/api/surveys/upload', {
         method: 'POST',
         body: formData
       });
@@ -440,7 +440,7 @@ export const SurveyTab: FC = () => {
 
   const fetchPersonalities = async () => {
     try {
-      const data: AIPersonality[] = await authenticatedApiRequest('http://localhost:3000/api/personalities');
+      const data: AIPersonality[] = await authenticatedApiRequest('http://localhost:8000/api/personalities');
       const activePersonalities = data.filter(p => p.is_active);
       setPersonalities(activePersonalities);
       
@@ -482,7 +482,7 @@ export const SurveyTab: FC = () => {
     setIsGenerating(true);
     setSuggestionError(null);
     try {
-      const res = await authenticatedFetch(`http://localhost:3000/api/surveys/${uploadedSurveyId}/suggestions`, {
+      const res = await authenticatedFetch(`http://localhost:8000/api/surveys/${uploadedSurveyId}/suggestions`, {
         method: 'POST',
         body: JSON.stringify({
           personalityId: selectedPersonalityId,

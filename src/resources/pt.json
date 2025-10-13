@@ -673,6 +673,7 @@
   "preChatModal.errors.preloadFailed": "Falha ao pré-carregar arquivos",
   "preChatModal.errors.sessionCreationFailed": "Falha ao criar sessão de chat",
   "preChatModal.errors.someFilesFailedPreload": "Alguns arquivos falharam ao pré-carregar",
+  "preChatModal.errors.surveyNotFound": "Esta pesquisa não existe mais",
   "preChatModal.noFiles": "Nenhum arquivo disponível para esta pesquisa",
   "preChatModal.noProcessedFiles": "Nenhum arquivo processado disponível. Os arquivos precisam ser processados antes de serem usados no chat.",
   "preChatModal.none": "Nenhum",

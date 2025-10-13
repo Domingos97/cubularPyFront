@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'react-router-dom';
 import { Survey } from '@/types/survey';
@@ -37,48 +37,76 @@ export function useChatSessions() {
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const { user } = useAuth();
   const location = useLocation();
+  const loadingRef = useRef<Set<string>>(new Set()); // Track loading sessions to prevent duplicates
+  const failedSessionsRef = useRef<Set<string>>(new Set()); // Track failed sessions to prevent retry loops
 
   const loadChatSessions = useCallback(async (surveyId?: string) => {
-    if (!user?.id) return;
+    console.log('🔍 loadChatSessions: Called with user:', user, 'surveyId:', surveyId);
+    if (!user?.id) {
+      console.log('🔍 loadChatSessions: No user ID, skipping. User object:', user);
+      return;
+    }
     setIsLoading(true);
+    console.log('🔍 loadChatSessions: Starting with user:', user.id, 'surveyId:', surveyId);
     try {
-      let url = `/api/chat/sessions?userId=${user.id}`;
+      let url = `http://localhost:8000/api/chat/sessions`;
       if (surveyId) {
-        url += `&surveyId=${surveyId}`;
+        url += `?surveyId=${surveyId}`;
       }
+      console.log('🔍 loadChatSessions: API URL:', url);
+      console.log('🔍 loadChatSessions: Making authenticated request...');
+      
       const response = await authenticatedFetch(url);
       
+      console.log('🔍 loadChatSessions: Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
       if (!response.ok) {
-        console.error('❌ API ERROR: Failed to load chat sessions:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('❌ API ERROR: Failed to load chat sessions:', response.status, response.statusText, errorText);
         setChatSessions([]);
         return;
       }
       
       const data = await response.json();
-      // Ensure data is always an array
-      const sessions = Array.isArray(data) ? data : [];
+      console.log('🔍 loadChatSessions: Raw response data:', data);
+      
+      // Extract sessions from the response object
+      const sessions = Array.isArray(data) ? data : (data.sessions || []);
+      console.log('🔍 loadChatSessions: Processed sessions:', sessions.length, sessions);
       setChatSessions(sessions);
     } catch (error) {
+      console.error('🔍 loadChatSessions: Error occurred:', error);
       setChatSessions([]);
     } finally {
       setIsLoading(false);
+      console.log('🔍 loadChatSessions: Finished loading');
     }
   }, [user?.id]);
 
-  const createNewSession = async (surveys: Survey[], category: string, selectedPersonalityId?: string | null, selectedFileIds?: string[]) => {
+  const createNewSession = useCallback(async (surveys: Survey[], category: string, selectedPersonalityId?: string | null, selectedFileIds?: string[]) => {
     if (!user?.id || surveys.length === 0) return null;
     
     try {
-  const surveyIds = surveys.map(s => s.id);
+      const surveyIds = surveys.map(s => s.id);
       const sessionTitle = `New Chat`; // Use placeholder title that will be updated by first message
+      
+      console.log('🎯 Creating new session with:');
+      console.log('  - surveyIds:', surveyIds);
+      console.log('  - category:', category);
+      console.log('  - selectedPersonalityId:', selectedPersonalityId);
+      console.log('  - selectedFiles:', selectedFileIds);
       
       console.log('🎯 Creating new session with selected files:', selectedFileIds);
       
-      const response = await authenticatedFetch('/api/chat/sessions', {
+      const response = await authenticatedFetch('http://localhost:8000/api/chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: user.id,
           survey_ids: surveyIds,
           category,
           title: sessionTitle,
@@ -94,7 +122,7 @@ export function useChatSessions() {
       const newSession = await response.json();
       
       if (newSession) {
-        await loadChatSessions();
+        // Don't automatically reload all sessions - let components handle their own reloading
         return {
           success: true,
           session: newSession,
@@ -105,51 +133,87 @@ export function useChatSessions() {
       console.error('Failed to create new session:', error);
     }
     return null;
-  };
+  }, [user?.id]);
 
-  const loadSession = async (sessionId: string) => {
+  const loadSession = useCallback(async (sessionId: string) => {
+    // Prevent duplicate loads
+    if (loadingRef.current.has(sessionId)) {
+      console.log('🔍 useChatSessions: Session already loading, skipping:', sessionId);
+      return null;
+    }
+    
+    loadingRef.current.add(sessionId);
     setIsLoadingSession(true);
     try {
-      const sessionRes = await authenticatedFetch(`/api/chat/sessions/${sessionId}`);
+      console.log('🔍 useChatSessions: Loading session:', sessionId);
       
-      if (!sessionRes.ok) {
-        throw new Error(`Session API failed with status ${sessionRes.status}`);
+      // Use the quick endpoint that returns both session and messages
+      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/quick`);
+      
+      if (!response.ok) {
+        // If session is not found (404), clear URL parameters to prevent infinite loops
+        if (response.status === 404) {
+          console.warn('🔍 useChatSessions: Session not found, clearing URL parameters:', sessionId);
+          failedSessionsRef.current.add(sessionId); // Mark as failed
+          const currentUrl = new URL(window.location.href);
+          if (currentUrl.searchParams.get('session') === sessionId) {
+            currentUrl.searchParams.delete('session');
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+        }
+        throw new Error(`Session API failed with status ${response.status}`);
       }
       
-      const session = await sessionRes.json();
-      console.log('🔍 useChatSessions: Loaded session data:', session);
+      const data = await response.json();
+      console.log('🔍 useChatSessions: Loaded session data:', data);
+      
+      // Extract session and messages from the response
+      const session = data.session || data;
+      const messages = data.messages || [];
+      
+      console.log('🔍 useChatSessions: Session:', session);
+      console.log('🔍 useChatSessions: Messages count:', messages.length);
       console.log('🔍 useChatSessions: Session personality_id:', session.personality_id);
       
-      const messagesRes = await authenticatedFetch(`/api/chat/sessions/${sessionId}/messages`);
-      
-      if (!messagesRes.ok) {
-        throw new Error(`Messages API failed with status ${messagesRes.status}`);
-      }
-      
-      const messages = await messagesRes.json();
+      // Set current session and messages
       setCurrentSession(session);
       setCurrentMessages(messages || []);
       
       return { session, messages };
     } catch (error) {
+      console.error('🔍 useChatSessions: Error loading session:', error);
       // Clear state on error
       setCurrentSession(null);
       setCurrentMessages([]);
       return null;
     } finally {
+      loadingRef.current.delete(sessionId);
       setIsLoadingSession(false);
     }
-  };
+  }, []);
 
   // Handle URL parameters for automatic session loading
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const sessionId = urlParams.get('session');
     
-    if (sessionId && sessionId !== currentSession?.id && chatSessions.length > 0) {
-      loadSession(sessionId);
+    if (sessionId && 
+        sessionId !== currentSession?.id && 
+        !isLoadingSession && 
+        !loadingRef.current.has(sessionId) &&
+        !failedSessionsRef.current.has(sessionId)) {
+      console.log('useChatSessions: Auto-loading session from URL:', sessionId);
+      loadSession(sessionId).catch(error => {
+        console.error('useChatSessions: Failed to auto-load session:', error);
+        // Mark session as failed to prevent retry loops
+        failedSessionsRef.current.add(sessionId);
+        // Clear URL parameter on error to prevent infinite loops
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('session');
+        window.history.replaceState({}, '', newUrl.toString());
+      });
     }
-  }, [location.search, currentSession?.id, chatSessions.length]);
+  }, [location.search, currentSession?.id, isLoadingSession, loadSession]);
 
   const saveMessage = async (
     content: string, 
@@ -163,7 +227,7 @@ export function useChatSessions() {
     if (!sessionId) return;
     
     try {
-      const response = await authenticatedFetch(`/api/chat/sessions/${sessionId}/messages`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -186,7 +250,19 @@ export function useChatSessions() {
         setCurrentMessages(prev => [...prev, savedMessage]);
       }
       
-      await loadChatSessions();
+      // Update the session in the local state to reflect the new message
+      // This avoids a full reload but keeps the sidebar updated
+      setChatSessions(prev => prev.map(session => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            updated_at: new Date().toISOString(),
+            // Optionally update other fields that might have changed
+          };
+        }
+        return session;
+      }));
+      
       return savedMessage;
     } catch (error) {
       console.error('Error saving message:', error);
@@ -198,7 +274,7 @@ export function useChatSessions() {
     try {
       console.log('🗑️ Deleting session:', sessionId, 'Current session:', currentSession?.id);
       
-      const response = await authenticatedFetch(`/api/chat/sessions/${sessionId}`, { 
+      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, { 
         method: 'DELETE' 
       });
       
@@ -214,9 +290,11 @@ export function useChatSessions() {
         setCurrentMessages([]);
       }
       
-      // Reload sessions to refresh the UI
-      console.log('🗑️ Reloading chat sessions after deletion');
-      await loadChatSessions();
+      // Clear from failed sessions in case it was marked as failed before
+      failedSessionsRef.current.delete(sessionId);
+      
+      // Don't automatically reload sessions after deletion - let components handle it
+      console.log('🗑️ Session deletion completed, components should reload as needed');
       
     } catch (error) {
       console.error('Error deleting session:', error);
@@ -226,12 +304,12 @@ export function useChatSessions() {
 
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
     try {
-      await authenticatedFetch(`/api/chat/sessions/${sessionId}`, {
+      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle })
       });
-      await loadChatSessions();
+      // Don't automatically reload - let components handle it
     } catch (error) {
       console.error('Error updating session title:', error);
     }
@@ -240,7 +318,7 @@ export function useChatSessions() {
   const updateSessionSurveys = async (sessionId: string, surveys: Survey[], category: string) => {
     try {
       // Clear existing messages
-      await authenticatedFetch(`/api/chat/sessions/${sessionId}/messages`, { method: 'DELETE' });
+      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`, { method: 'DELETE' });
       
   const surveyIds = surveys.map(s => s.id);
       const newTitle = surveys.length === 1 
@@ -248,7 +326,7 @@ export function useChatSessions() {
         : `Chat about ${surveys.length} surveys`;
       
       // Update session with new surveys
-      await authenticatedFetch(`/api/chat/sessions/${sessionId}`, {
+      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -302,11 +380,11 @@ export function useChatSessions() {
     try {
       await Promise.all(
         sessionsToDelete.map(sessionId =>
-          authenticatedFetch(`/api/chat/sessions/${sessionId}`, { method: 'DELETE' })
+          authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, { method: 'DELETE' })
         )
       );
       
-      await loadChatSessions();
+      // Don't automatically reload - let components handle it
       
       // Clear selection and current session if it was deleted
       setSelectedSessions(new Set());
@@ -319,10 +397,16 @@ export function useChatSessions() {
     }
   };
 
-  const clearCurrentSession = () => {
+  const clearCurrentSession = useCallback(() => {
     setCurrentSession(null);
     setCurrentMessages([]);
-  };
+  }, []);
+
+  const clearAllSessions = useCallback(() => {
+    setChatSessions([]);
+    setCurrentSession(null);
+    setCurrentMessages([]);
+  }, []);
 
   return {
     chatSessions,
@@ -340,6 +424,7 @@ export function useChatSessions() {
     updateSessionTitle,
     updateSessionSurveys,
     clearCurrentSession,
+    clearAllSessions,
     // Selection management
     toggleSessionSelection,
     selectAllSessions,

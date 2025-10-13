@@ -27,7 +27,7 @@ const AIPersonalityEdit = () => {
   useEffect(() => {
     if (id) {
       setIsLoading(true);
-      fetch(`http://localhost:3000/api/personalities/${id}`)
+      fetch(`http://localhost:8000/api/personalities/${id}`)
         .then(res => res.json())
         .then(data => {
           setFormData({
@@ -49,7 +49,7 @@ const AIPersonalityEdit = () => {
       ...formData
     };
     try {
-      const url = id ? `http://localhost:3000/api/personalities/${id}` : 'http://localhost:3000/api/personalities';
+      const url = id ? `http://localhost:8000/api/personalities/${id}` : 'http://localhost:8000/api/personalities';
       const method = id ? 'PUT' : 'POST';
       const response = await fetch(url, {
         method,

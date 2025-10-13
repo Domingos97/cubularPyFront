@@ -32,9 +32,10 @@ interface ChatSidebarProps {
 export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatSelect, selectedPersonalityId, onPersonalityChange, selectedFiles }: ChatSidebarProps) {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
-  const { chatSessions, createNewSession, loadSession, deleteSession, updateSessionSurveys, currentSession, isLoading, isLoadingSession, loadChatSessions, clearCurrentSession, currentMessages } = useChatSessions();
+  const { chatSessions, createNewSession, loadSession, deleteSession, updateSessionSurveys, currentSession, isLoading, isLoadingSession, loadChatSessions, clearCurrentSession, clearAllSessions, currentMessages } = useChatSessions();
   const { surveys } = useSurveys();
   const { t } = useTranslation();
+  
   // Export chat session as PDF
   const handleExportPDF = async (sessionId: string, sessionTitle: string) => {
     try {
@@ -270,13 +271,24 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
 
   // Load chat sessions filtered by selected survey
   useEffect(() => {
-    if (selectedSurvey?.id) {
-      loadChatSessions(selectedSurvey.id);
-    } else {
-      // Load all sessions if no survey is selected
-      loadChatSessions();
+    console.log('🔍 ChatSidebar: useEffect triggered, selectedSurvey:', selectedSurvey?.id, 'loadChatSessions available:', !!loadChatSessions);
+    
+    if (!loadChatSessions || !clearAllSessions) {
+      console.warn('🔍 ChatSidebar: Functions not available yet, skipping');
+      return;
     }
-  }, [selectedSurvey?.id, loadChatSessions]);
+    
+    if (selectedSurvey?.id) {
+      console.log('🔍 ChatSidebar: Loading sessions for survey:', selectedSurvey.id);
+      loadChatSessions(selectedSurvey.id).catch(error => {
+        console.error('🔍 ChatSidebar: Error loading sessions:', error);
+      });
+    } else {
+      // Clear sessions when no survey is selected
+      console.log('🔍 ChatSidebar: No survey selected, clearing sessions');
+      clearAllSessions();
+    }
+  }, [selectedSurvey?.id]); // Removed function dependencies to prevent infinite loops
 
   // Track when sessions state changes
   useEffect(() => {
@@ -305,14 +317,27 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
 
   const handleNewChat = async () => {
     if (selectedSurvey) {
-      const result = await createNewSession([selectedSurvey], selectedSurvey.category, selectedPersonalityId, selectedFiles);
+      console.log('🔍 ChatSidebar: Creating new chat with survey:', selectedSurvey.id, 'category:', selectedSurvey.category);
+      const result = await createNewSession([selectedSurvey], selectedSurvey.category || 'survey-analysis', selectedPersonalityId, selectedFiles);
       if (result && onNewChat) {
         onNewChat(result.id);
+        // Reload sessions to show the new one
+        loadChatSessions(selectedSurvey.id);
       }
     }
   };
 
   const handleSurveySelect = async (surveyId: string) => {
+    // Handle deselecting survey ("none" value)
+    if (surveyId === "none") {
+      clearCurrentSession();
+      onSurveyChange(null);
+      clearAllSessions();
+      // Navigate without session parameter to reset URL
+      navigate('/survey-results', { replace: true });
+      return;
+    }
+
     const survey = surveys.find(s => s.id === surveyId);
     if (!survey) {
       return;
@@ -328,11 +353,8 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       // Update the survey selection (this will trigger the useEffect to load sessions)
       onSurveyChange(survey);
       
-      // Force immediate reload of chat sessions for the new survey
-      try {
-        await loadChatSessions(surveyId);
-      } catch (error) {
-      }
+      // Force immediate reload of chat sessions for the new survey to ensure it's loaded
+      loadChatSessions(surveyId);
       
       // Navigate without session parameter - auto-load will handle it if sessions exist
       navigate('/survey-results', { replace: true });
@@ -387,11 +409,14 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
         <div className="space-y-3">
           <div className="text-xs text-gray-400 uppercase tracking-wide">{t('chatSidebar.selectSurvey')}</div>
           
-          <Select value={selectedSurvey?.id || ""} onValueChange={handleSurveySelect}>
+          <Select value={selectedSurvey?.id || "none"} onValueChange={handleSurveySelect}>
             <SelectTrigger className="h-8 text-xs bg-gray-900 border-gray-700 text-white">
               <SelectValue placeholder={t('chatSidebar.chooseSurvey')} />
             </SelectTrigger>
             <SelectContent className="bg-gray-900 border-gray-700 text-white z-50">
+              <SelectItem value="none" className="text-gray-400 hover:bg-gray-800">
+                {t('chatSidebar.noSurveySelected') || 'No survey selected'}
+              </SelectItem>
               {surveys.map(survey => (
                 <SelectItem key={survey.id} value={survey.id} className="text-white hover:bg-gray-800">
                   {survey.title || survey.filename || survey.id}
@@ -493,6 +518,20 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                           setDeletingSessionId(session.id);
                           try {
                             await deleteSession(session.id);
+                            
+                            // If deleting the current session, clear URL parameters to prevent infinite loading
+                            if (currentSession?.id === session.id) {
+                              const newUrl = new URL(window.location.href);
+                              newUrl.searchParams.delete('session');
+                              navigate(newUrl.pathname + newUrl.search, { replace: true });
+                            }
+                            
+                            // Reload sessions after deletion
+                            if (selectedSurvey?.id) {
+                              loadChatSessions(selectedSurvey.id);
+                            } else {
+                              clearAllSessions();
+                            }
                             toast({
                               title: t('chatSidebar.deleteSuccess'),
                               description: t('chatSidebar.deleteSuccessDescription', { title: session.title }),

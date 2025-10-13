@@ -50,7 +50,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
     const fetchPersonalities = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch('http://localhost:3000/api/personalities', {
+        const response = await fetch('http://localhost:8000/api/personalities', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -188,7 +188,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`http://localhost:3000/api/surveys/generate-suggestions`, {
+      const response = await fetch(`http://localhost:8000/api/surveys/generate-suggestions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -253,7 +253,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
         uploadHeaders['Authorization'] = `Bearer ${token}`;
       }
       
-      const uploadResponse = await fetch('http://localhost:3000/api/surveys/upload', {
+      const uploadResponse = await fetch('http://localhost:8000/api/surveys/upload', {
         method: 'POST',
         headers: uploadHeaders,
         body: formData

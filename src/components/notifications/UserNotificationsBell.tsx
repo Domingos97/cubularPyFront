@@ -94,7 +94,7 @@ const UserNotificationsBell = () => {
     
     try {
       setLoading(true);
-      const response = await authenticatedFetch('http://localhost:3000/api/notifications/my?limit=50');
+      const response = await authenticatedFetch('http://localhost:8000/api/notifications/my?limit=50');
       
       if (response.ok) {
         const data = await response.json();

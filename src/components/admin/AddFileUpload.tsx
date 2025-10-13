@@ -75,7 +75,7 @@ export const AddFileUpload: React.FC<AddFileUploadProps> = ({
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const response = await fetch(`http://localhost:3000/api/surveys/${surveyId}/files`, {
+      const response = await fetch(`http://localhost:8000/api/surveys/${surveyId}/files`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

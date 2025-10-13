@@ -91,7 +91,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
   const fetchAvailablePlans = async () => {
     try {
       console.log('Fetching available plans...');
-      const response = await authenticatedFetch('http://localhost:3000/api/plans/available');
+      const response = await authenticatedFetch('http://localhost:8000/api/plans/available');
       
       if (response.ok) {
         const data = await response.json();
@@ -137,7 +137,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
         planId: selectedPlanId
       };
       
-      const response = await authenticatedFetch(`http://localhost:3000/api/users/${user.id}/assign-plan`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}/assign-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
 
     setIsLoading(true);
     try {
-      const response = await authenticatedFetch(`http://localhost:3000/api/users/${user.id}/revoke-plan`, {
+      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}/revoke-plan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

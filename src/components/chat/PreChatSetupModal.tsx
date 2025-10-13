@@ -77,6 +77,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
 
       if (shouldInitialize) {
         console.log('🔍 FRONTEND: First-time modal initialization. Survey ID:', currentSurveyId, 'Personality ID:', currentPersonalityId);
+        console.log('🔍 FRONTEND: Available surveys:', surveys.map(s => ({ id: s.id, title: s.title })));
         
         // Pre-select the initial survey if provided
         setSelectedSurvey(initialSurvey || null);
@@ -134,6 +135,15 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
 
   // Load files when survey is selected (only if different from current)
   useEffect(() => {
+    console.log('🔍 FRONTEND: Survey selection effect triggered:', {
+      surveyId: selectedSurvey?.id,
+      lastInitialSurveyId: lastInitialSurveyIdRef.current,
+      loadedSurveyFiles: loadedSurveyFilesRef.current,
+      shouldLoad: selectedSurvey?.id && 
+        selectedSurvey.id !== lastInitialSurveyIdRef.current && 
+        selectedSurvey.id !== loadedSurveyFilesRef.current
+    });
+    
     if (selectedSurvey?.id && 
         selectedSurvey.id !== lastInitialSurveyIdRef.current && 
         selectedSurvey.id !== loadedSurveyFilesRef.current) {
@@ -143,6 +153,12 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   }, [selectedSurvey?.id]); // Only depend on the ID since we have proper guards
 
   const loadSurveyFiles = useCallback(async (surveyId: string) => {
+    console.log('🔍 FRONTEND: loadSurveyFiles called with surveyId:', surveyId, {
+      isLoadingFiles,
+      loadedSurveyFilesRef: loadedSurveyFilesRef.current,
+      shouldEarlyReturn: isLoadingFiles || loadedSurveyFilesRef.current === surveyId
+    });
+    
     if (isLoadingFiles || loadedSurveyFilesRef.current === surveyId) return; // Prevent concurrent calls and duplicate loads
     
     setIsLoadingFiles(true);
@@ -154,13 +170,15 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       setIsValidatingAccess(true);
       
       console.log('🔍 FRONTEND: Making API call to:', `/api/surveys/${surveyId}/access-check`);
-      const accessResponse = await authenticatedFetch(`/api/surveys/${surveyId}/access-check`, {
+      const accessResponse = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}/access-check`, {
         method: 'GET'
       });
 
       if (!accessResponse.ok) {
         if (accessResponse.status === 403) {
           setAccessError(t('preChatModal.errors.accessDenied') || 'You do not have access to this survey');
+        } else if (accessResponse.status === 404) {
+          setAccessError(t('preChatModal.errors.surveyNotFound') || 'This survey no longer exists');
         } else {
           setAccessError(t('preChatModal.errors.accessValidationFailed') || 'Failed to validate survey access');
         }
@@ -170,16 +188,11 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       }
 
       const accessData = await accessResponse.json();
+      console.log('🔍 FRONTEND: Access check response data:', accessData);
       
       // Use the accessible files from the access check response
       const accessibleFiles = accessData.accessibleFiles || [];
-      
-      if (accessibleFiles.length === 0) {
-        setAccessError(t('preChatModal.errors.noAccessibleFiles') || 'No accessible files found for this survey');
-        setIsValidatingAccess(false);
-        setIsLoadingFiles(false);
-        return;
-      }
+      console.log('🔍 FRONTEND: Accessible files found:', accessibleFiles.length, accessibleFiles);
       
       setIsValidatingAccess(false);
 
@@ -203,6 +216,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       });
 
       setAvailableFiles(enhancedFiles);
+      console.log('🔍 FRONTEND: Files set in state, total count:', enhancedFiles.length);
       
       // Auto-select processed files
       const processedFileIds = enhancedFiles
@@ -211,7 +225,8 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       setSelectedFiles(processedFileIds);
 
     } catch (error) {
-      console.error('Error loading survey files:', error);
+      console.error('🔍 FRONTEND: Error loading survey files:', error);
+      console.error('🔍 FRONTEND: Error details:', error instanceof Error ? error.message : String(error));
       setAccessError(t('preChatModal.errors.loadingFailed') || 'Failed to load survey files');
       loadedSurveyFilesRef.current = null; // Reset on error so we can retry
     } finally {
@@ -225,7 +240,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     
     setIsLoadingPersonalities(true);
     try {
-      const response = await authenticatedFetch('/api/personalities');
+      const response = await authenticatedFetch('http://localhost:8000/api/personalities');
       if (!response.ok) {
         throw new Error('Failed to load personalities');
       }
@@ -271,14 +286,15 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     try {
       console.log('🔍 PreChatSetupModal: Creating session with personality:', selectedPersonality);
       
-      const sessionResponse = await authenticatedFetch('/api/chat/sessions/create-optimized', {
+      const sessionResponse = await authenticatedFetch('http://localhost:8000/api/chat/sessions/create-optimized', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          surveyId: selectedSurvey.id,
+          surveyIds: [selectedSurvey.id], // Send as array
           fileIds: selectedFiles,
           title: `New Chat`, // Use placeholder title that will be updated by first message
-          personalityId: selectedPersonality
+          personalityId: selectedPersonality,
+          category: selectedSurvey.category || 'survey-analysis' // Include category
         })
       });
 
@@ -439,7 +455,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
           )}
 
           {/* File Selection */}
-          {selectedSurvey && !accessError && (
+          {selectedSurvey && !(accessError?.includes('não tem acesso') || accessError?.includes('access denied') || accessError?.includes('Access denied') || accessError?.includes('não existe mais') || accessError?.includes('no longer exists')) && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-300">

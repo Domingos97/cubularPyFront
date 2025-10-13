@@ -64,7 +64,7 @@ export const usePersonalities = () => {
   const loadPersonalities = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3000/api/personalities', {
+      const response = await fetch('http://localhost:8000/api/personalities', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -85,7 +85,7 @@ export const usePersonalities = () => {
         cacheDuration: forceRefresh ? 0 : CACHE_DURATION,
         request: async () => {
           const token = localStorage.getItem('authToken');
-          const response = await fetch('http://localhost:3000/api/users/me/preferred-personality', {
+          const response = await fetch('http://localhost:8000/api/users/me/preferred-personality', {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -121,7 +121,7 @@ export const usePersonalities = () => {
   const updateUserPreference = async (personalityId: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3000/api/users/me/preferred-personality', {
+      await fetch('http://localhost:8000/api/users/me/preferred-personality', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ export const usePersonalities = () => {
   const setPreferredPersonality = async (personalityId: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3000/api/users/me/preferred-personality', {
+      await fetch('http://localhost:8000/api/users/me/preferred-personality', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

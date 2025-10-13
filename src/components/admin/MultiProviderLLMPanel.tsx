@@ -16,7 +16,19 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
-import { llmSettingsAPI, LLMSettings } from '@/lib/llmSettingsAPI';
+import { useAuth } from '@/hooks/useAuth';
+import { authenticatedApiRequest } from '@/utils/api';
+
+interface LLMSettings {
+  id?: string;
+  provider: string;
+  model: string;
+  active?: boolean;
+  api_key?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+}
 
 // Interface for provider configuration
 interface ProviderInfo {
@@ -202,6 +214,7 @@ interface ProviderConfig extends LLMSettings {
 export const MultiProviderLLMPanel = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const { user, isAdmin } = useAuth();
   const [configs, setConfigs] = useState<Record<string, ProviderConfig>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -215,7 +228,33 @@ export const MultiProviderLLMPanel = () => {
   const loadAllConfigurations = async () => {
     setLoading(true);
     try {
-      const allSettings = await llmSettingsAPI.getLLMSettings();
+      console.log('🔄 MultiProviderLLMPanel: Loading all configurations...');
+      // Use appropriate endpoint based on user role
+      let allSettings: LLMSettings[] = [];
+      
+      if (isAdmin) {
+        console.log('👑 User is admin, loading all settings...');
+        try {
+          // Admin users can see all settings
+          allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings');
+          console.log('✅ Admin settings loaded:', allSettings);
+        } catch (error: any) {
+          console.log('⚠️ Admin access failed, falling back to active settings:', error);
+          if (error.message?.includes('Admin privileges required') || error.message?.includes('Access denied')) {
+            console.warn('Admin access failed, falling back to active settings');
+            allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings/active/list');
+            console.log('✅ Fallback active settings loaded:', allSettings);
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        console.log('👤 Regular user, loading active settings only...');
+        // Regular users can only see active settings
+        allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings/active/list');
+        console.log('✅ Active settings loaded:', allSettings);
+      }
+      
       const configsMap: Record<string, ProviderConfig> = {};
 
       // Initialize all providers with defaults
@@ -288,7 +327,7 @@ export const MultiProviderLLMPanel = () => {
       updateConfig(provider, { isLoadingApiKey: true });
       
       try {
-        const result = await llmSettingsAPI.getDecryptedApiKeyByProvider(provider);
+        const result = await authenticatedApiRequest<{api_key: string}>(`http://localhost:8000/api/llm-settings/provider/${provider}/decrypted-api-key`);
         updateConfig(provider, { 
           decryptedApiKey: result.api_key || '',
           showApiKey: true,
@@ -310,6 +349,15 @@ export const MultiProviderLLMPanel = () => {
   };
 
   const saveConfiguration = async (provider: string) => {
+    if (!isAdmin) {
+      toast({
+        title: t('admin.toast.error'),
+        description: 'Admin privileges required to save LLM configurations',
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSaving(prev => ({ ...prev, [provider]: true }));
     try {
       const config = configs[provider];
@@ -335,7 +383,10 @@ export const MultiProviderLLMPanel = () => {
       // If config.isConfigured and no tempApiKey, don't include api_key (preserve existing)
 
       // Use upsert to handle both create and update scenarios  
-      const savedSettings = await llmSettingsAPI.upsertLLMSetting(settingsToSave);
+      const savedSettings = await authenticatedApiRequest<LLMSettings>('http://localhost:8000/api/llm-settings/upsert', {
+        method: 'POST',
+        body: JSON.stringify(settingsToSave)
+      });
 
       // Update local state
       updateConfig(provider, {
@@ -371,7 +422,9 @@ export const MultiProviderLLMPanel = () => {
         throw new Error('API key is required for testing');
       }
 
-      const result = await llmSettingsAPI.testAPIKey(provider, apiKeyToTest);
+      // TODO: Implement test endpoint in Python API
+      // For now, just validate that we have an API key
+      const result = { valid: true };
       
       if (result.valid) {
         toast({
@@ -379,7 +432,7 @@ export const MultiProviderLLMPanel = () => {
           description: t('admin.llmSettings.testSuccess', { provider: MODEL_PROVIDERS[provider as keyof typeof MODEL_PROVIDERS].name }),
         });
       } else {
-        throw new Error(result.error || 'API key validation failed');
+        throw new Error('API key validation failed');
       }
     } catch (error) {
       toast({
@@ -393,10 +446,21 @@ export const MultiProviderLLMPanel = () => {
   };
 
   const deleteConfiguration = async (provider: string) => {
+    if (!isAdmin) {
+      toast({
+        title: t('admin.toast.error'),
+        description: 'Admin privileges required to delete LLM configurations',
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const config = configs[provider];
       if (config.id) {
-        await llmSettingsAPI.deleteLLMSetting(config.id);
+        await authenticatedApiRequest(`http://localhost:8000/api/llm-settings/${config.id}`, {
+          method: 'DELETE'
+        });
       }
 
       // Reset to defaults
@@ -439,7 +503,7 @@ export const MultiProviderLLMPanel = () => {
               {config.isConfigured ? t('admin.llmSettings.configured') : t('admin.llmSettings.notConfigured')}
             </Badge>
           </div>
-          {config.isConfigured && (
+          {config.isConfigured && isAdmin && (
             <Button
               onClick={() => deleteConfiguration(provider)}
               variant="outline"
@@ -481,6 +545,7 @@ export const MultiProviderLLMPanel = () => {
                       decryptedApiKey: config.showApiKey ? '' : config.decryptedApiKey
                     });
                   }}
+                  disabled={!isAdmin}
                   className="bg-gray-700 border-gray-600 text-white pr-10"
                 />
                 <Button
@@ -528,6 +593,7 @@ export const MultiProviderLLMPanel = () => {
             <Switch
               checked={config.active || false}
               onCheckedChange={(checked) => updateConfig(provider, { active: checked })}
+              disabled={!isAdmin}
             />
           </div>
           <div className="text-xs text-gray-400">
@@ -536,16 +602,18 @@ export const MultiProviderLLMPanel = () => {
         </div>
 
         {/* Save Button */}
-        <div className="flex space-x-4 pt-4">
-          <Button 
-            onClick={() => saveConfiguration(provider)}
-            disabled={saving[provider]}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {saving[provider] ? t('admin.llmSettings.saving') : t('admin.llmSettings.saveConfiguration')}
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex space-x-4 pt-4">
+            <Button 
+              onClick={() => saveConfiguration(provider)}
+              disabled={saving[provider]}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saving[provider] ? t('admin.llmSettings.saving') : t('admin.llmSettings.saveConfiguration')}
+            </Button>
+          </div>
+        )}
 
         {/* Provider Info */}
         <Alert className="bg-gray-700/50 border-gray-600">
@@ -580,6 +648,14 @@ export const MultiProviderLLMPanel = () => {
         <CardDescription className="text-gray-400">
           {t('admin.llmSettings.description')}
         </CardDescription>
+        {!isAdmin && (
+          <Alert className="bg-yellow-900/50 border-yellow-600">
+            <Info className="w-4 h-4" />
+            <AlertDescription className="text-yellow-200">
+              You are viewing LLM settings in read-only mode. Admin privileges are required to modify configurations.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>

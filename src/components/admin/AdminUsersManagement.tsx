@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Plus, Eye, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
+import { authenticatedApiRequest } from '@/utils/api';
 
 interface User {
   id: string;
@@ -47,19 +48,10 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
     }
 
     try {
-      const res = await fetch('http://localhost:3000/api/users', {
+      const data = await authenticatedApiRequest('http://localhost:8000/api/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
         body: JSON.stringify(newUser)
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create user');
-      }
 
       setIsAddUserOpen(false);
       setNewUser({ username: '', email: '', password: '', role: 'user' });
@@ -86,17 +78,9 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
     if (!confirm(t('admin.users.deleteConfirm'))) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+      await authenticatedApiRequest(`http://localhost:8000/api/users/${userId}`, {
+        method: 'DELETE'
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete user');
-      }
 
       onUserDeleted();
       toast({

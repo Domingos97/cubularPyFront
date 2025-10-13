@@ -72,7 +72,7 @@ type AccessType = 'read' | 'write' | 'admin';
 
 const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
   user,
-  surveys,
+  surveys = [],
   onGrantAccess,
   onRevokeAccess
 }) => {
@@ -156,11 +156,12 @@ const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
 
   const getItemName = (type: 'survey' | 'file', itemId: string): string => {
     if (type === 'survey') {
-      const survey = surveys.find(s => s.id === itemId);
+      const survey = surveys?.find(s => s.id === itemId);
       return survey?.title || 'Unknown Survey';
     } else {
+      if (!surveys || !Array.isArray(surveys)) return 'Unknown File';
       for (const survey of surveys) {
-        const file = survey.survey_files.find(f => f.id === itemId);
+        const file = survey.survey_files?.find(f => f.id === itemId);
         if (file) {
           return file.filename;
         }
@@ -264,7 +265,7 @@ const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
 
           {/* Matrix Rows */}
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {surveys.map((survey) => (
+            {surveys && Array.isArray(surveys) ? surveys.map((survey) => (
               <div key={survey.id} className="space-y-1">
                 {/* Survey Row */}
                 <div className="flex items-center gap-4 p-2 bg-gray-700/20 rounded-lg">
@@ -275,7 +276,7 @@ const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
                       onClick={() => toggleSurveyExpansion(survey.id)}
                       className="h-6 w-6 p-0 text-gray-400 hover:text-gray-200"
                     >
-                      {survey.survey_files.length > 0 && (
+                      {survey.survey_files && Array.isArray(survey.survey_files) && survey.survey_files.length > 0 && (
                         expandedSurveys.includes(survey.id) ? 
                         <ChevronDown className="h-4 w-4" /> : 
                         <ChevronRight className="h-4 w-4" />
@@ -312,7 +313,7 @@ const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
                 </div>
 
                 {/* File Rows (when expanded) */}
-                {expandedSurveys.includes(survey.id) && survey.survey_files.map((file) => (
+                {expandedSurveys.includes(survey.id) && survey.survey_files && Array.isArray(survey.survey_files) && survey.survey_files.map((file) => (
                   <div key={file.id} className="flex items-center gap-4 p-2 pl-12 bg-gray-700/10 rounded-lg ml-4">
                     <div className="w-72 flex-shrink-0 flex items-center gap-2">
                       <div className="p-1.5 rounded-md bg-green-600/20">
@@ -345,7 +346,11 @@ const AccessPermissionMatrix: React.FC<AccessPermissionMatrixProps> = ({
                   </div>
                 ))}
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-8 text-gray-400">
+                No surveys available
+              </div>
+            )}
           </div>
 
           {/* Legend */}

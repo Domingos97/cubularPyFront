@@ -65,6 +65,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
   const [currentSurveyId, setCurrentSurveyId] = useState(surveyId);
   const [createdSurveyId, setCreatedSurveyId] = useState<string | null>(null);
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [showCreationForm, setShowCreationForm] = useState(!surveyId); // Show form if no surveyId provided
   
   // Reset form function
   const resetForm = useCallback(() => {
@@ -79,14 +80,19 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     setProcessingComplete(false);
     setProgress(0);
     setError('');
-  }, [personalities]);
+    // Only reset showCreationForm if we're not in an existing survey context
+    if (!surveyId) {
+      setShowCreationForm(true);
+      setCurrentSurveyId(undefined);
+    }
+  }, [personalities, surveyId]);
 
   // Fetch AI personalities on component mount
   React.useEffect(() => {
     const fetchPersonalities = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch('http://localhost:3000/api/personalities', {
+        const response = await fetch('http://localhost:8000/api/personalities', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -266,12 +272,56 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     setSelectedFiles(prev => prev.filter(f => f.id !== fileId));
   }, []);
 
+  // Create survey (if needed)
+  const createSurvey = useCallback(async (): Promise<string> => {
+    // Return existing survey ID if we have one
+    if (currentSurveyId) return currentSurveyId;
+    if (createdSurveyId) return createdSurveyId;
+    
+    if (!surveyTitle.trim()) {
+      throw new Error('Survey title is required');
+    }
+    
+    const surveyData: CreateSurveyRequest = {
+      title: surveyTitle.trim(),
+      category: category.trim() || undefined,
+      description: description.trim() || undefined,
+      number_participants: numberParticipants
+      // Note: ai_suggestions will be generated and saved separately after survey creation
+    };
+    
+    // Ensure empty strings become undefined
+    if (surveyData.category === '') surveyData.category = undefined;
+    if (surveyData.description === '') surveyData.description = undefined;
+    
+    const response = await authenticatedFetch('http://localhost:8000/api/surveys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(surveyData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to create survey');
+    }
+    
+    const survey = await response.json();
+    setCurrentSurveyId(survey.id);
+    setCreatedSurveyId(survey.id);
+    
+    if (onSurveyCreated) {
+      onSurveyCreated(survey);
+    }
+    
+    return survey.id;
+  }, [currentSurveyId, createdSurveyId, surveyTitle, category, description, numberParticipants, onSurveyCreated]);
+
   // Generate AI suggestions based on description, category, and file content
   const generateAISuggestions = useCallback(async () => {
-    if (!description.trim() || !category || selectedFiles.length === 0 || !selectedPersonality) {
+    if (selectedFiles.length === 0 || !selectedPersonality) {
       toast({
         title: "Missing Information",
-        description: "Please fill in category, description, select at least one file, and choose a personality before generating questions.",
+        description: "Please select at least one file and choose a personality before generating questions.",
         variant: "destructive",
       });
       return;
@@ -281,6 +331,9 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     setError('');
 
     try {
+      // Create survey first if needed to get survey_id
+      const activeSurveyId = await createSurvey();
+      
       // Use the first file for content sample
       const firstFile = selectedFiles[0];
       let sampleContent = { headers: [], sampleRows: [] };
@@ -293,7 +346,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         };
       }
 
-      // Generate suggestions directly without saving survey
+      // Generate suggestions with survey_id
       const token = localStorage.getItem('authToken');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -303,14 +356,12 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`http://localhost:3000/api/surveys/generate-suggestions`, {
+      const response = await fetch(`http://localhost:8000/api/surveys/${activeSurveyId}/suggestions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          description: description.trim(),
-          category,
-          fileContent: sampleContent,
           personalityId: selectedPersonality,
+          fileContent: sampleContent,
         })
       });
       
@@ -345,43 +396,6 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     }
   }, [description, category, selectedFiles, selectedPersonality, toast]);
 
-  // Create survey (if needed)
-  const createSurvey = useCallback(async (): Promise<string> => {
-    if (currentSurveyId) return currentSurveyId;
-    
-    if (!surveyTitle.trim()) {
-      throw new Error('Survey title is required');
-    }
-    
-    const surveyData: CreateSurveyRequest = {
-      title: surveyTitle.trim(),
-      category: category.trim() || undefined,
-      description: description.trim() || undefined,
-      number_participants: numberParticipants
-      // Note: ai_suggestions will be generated and saved separately after survey creation
-    };
-    
-    const response = await authenticatedFetch('http://localhost:3000/api/surveys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(surveyData)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Failed to create survey');
-    }
-    
-    const { survey } = await response.json();
-    setCurrentSurveyId(survey.id);
-    
-    if (onSurveyCreated) {
-      onSurveyCreated(survey);
-    }
-    
-    return survey.id;
-  }, [currentSurveyId, surveyTitle, category, description, numberParticipants, onSurveyCreated]);
-
   // Upload files
   const uploadFiles = useCallback(async () => {
     if (selectedFiles.length === 0) {
@@ -413,7 +427,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
             };
           }
           
-          const response = await authenticatedFetch(`http://localhost:3000/api/surveys/${activeSurveyId}/suggestions`, {
+          const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${activeSurveyId}/suggestions`, {
             method: 'POST',
             body: JSON.stringify({ 
               personalityId: selectedPersonality,
@@ -442,7 +456,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         formData.append('file', file.file);
         
         const response = await authenticatedFetch(
-          `http://localhost:3000/api/surveys/${activeSurveyId}/files`,
+          `http://localhost:8000/api/surveys/${activeSurveyId}/files`,
           {
             method: 'POST',
             body: formData
@@ -483,6 +497,9 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       setProcessingComplete(true);
       setUploading(false);
       
+      // Hide creation form after successful upload (but not when just generating suggestions)
+      setShowCreationForm(false);
+      
       // Reset form after successful completion
       resetForm();
       
@@ -509,12 +526,17 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
   return (
     <div className="space-y-6">
       {/* Survey Information (only if creating new survey) */}
-      {!currentSurveyId && (
+      {showCreationForm && (
         <Card className="bg-gray-800/50 border-gray-600">
           <CardHeader>
             <CardTitle className="text-white">Survey Information</CardTitle>
             <CardDescription className="text-gray-300">
               Basic information about your survey
+              {currentSurveyId && (
+                <span className="block text-green-400 text-sm mt-1">
+                  ✓ Survey created successfully
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -599,7 +621,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       )}
 
       {/* AI Suggestions Section */}
-      {!currentSurveyId && (
+      {showCreationForm && (
         <Card className="bg-gray-800/50 border-gray-600">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
@@ -791,7 +813,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       {/* Upload Button */}
       <Button 
         onClick={uploadFiles} 
-        disabled={uploading || selectedFiles.length === 0 || (!currentSurveyId && !surveyTitle.trim())}
+        disabled={uploading || selectedFiles.length === 0 || (showCreationForm && !surveyTitle.trim())}
         className="w-full bg-blue-600 hover:bg-blue-700 text-white"
         size="lg"
       >
@@ -807,7 +829,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
           <>
             <Upload className="w-4 h-4 mr-2" />
             Upload {selectedFiles.length} File{selectedFiles.length !== 1 ? 's' : ''}
-            {!currentSurveyId && ' & Create Survey'}
+            {showCreationForm && ' & Create Survey'}
           </>
         )}
       </Button>
