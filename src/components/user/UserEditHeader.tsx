@@ -4,14 +4,16 @@ import { ArrowLeft, Save } from 'lucide-react';
 
 interface UserEditHeaderProps {
   username: string;
-  isSaving: boolean;
+  isSaving?: boolean;
+  showSaveButton?: boolean;
   onBack: () => void;
-  onSave: () => void;
+  onSave?: () => void;
 }
 
 const UserEditHeader: React.FC<UserEditHeaderProps> = ({
   username,
-  isSaving,
+  isSaving = false,
+  showSaveButton = false,
   onBack,
   onSave
 }) => {
@@ -33,25 +35,27 @@ const UserEditHeader: React.FC<UserEditHeaderProps> = ({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          onClick={onSave}
-          disabled={isSaving}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          {isSaving ? (
-            <>
-              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </>
-          )}
-        </Button>
-      </div>
+      {showSaveButton && onSave && (
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={onSave}
+            disabled={isSaving}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isSaving ? (
+              <>
+                <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

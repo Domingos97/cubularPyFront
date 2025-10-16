@@ -7,19 +7,21 @@ interface PersonalitySelectorProps {
   onPersonalityChange?: (personalityId: string) => void;
   className?: string;
   value?: string;
+  context?: 'ai_chat_integration' | 'survey_builder' | 'all';
 }
 
 export const PersonalitySelector: React.FC<PersonalitySelectorProps> = ({
   onPersonalityChange,
   className,
-  value
+  value,
+  context = 'all'
 }) => {
   const { 
     personalities, 
     selectedPersonality, 
     updateUserPreference,
     isLoading 
-  } = usePersonalities();
+  } = usePersonalities(context);
 
 
   // Only notify parent component when selectedPersonality changes from the hook

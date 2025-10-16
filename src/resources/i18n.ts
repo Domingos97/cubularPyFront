@@ -12,10 +12,18 @@ import svTranslations from './sv.json';
 
 // Type definitions
 export type TranslationVariables = Record<string, string | number>;
-export type SupportedLanguage = 'en' | 'es' | 'pt' | 'sv';
+export type SupportedLanguage = 'en-US' | 'es-ES' | 'pt-PT' | 'sv-SE';
+
+// Map full locale codes to resource files (using short codes for file names)
+const localeToResourceMap: Record<SupportedLanguage, string> = {
+  'en-US': 'en',
+  'es-ES': 'es', 
+  'pt-PT': 'pt',
+  'sv-SE': 'sv'
+};
 
 // Resource storage with pre-loaded translations
-const resources: Record<SupportedLanguage, Record<string, string>> = {
+const resources: Record<string, Record<string, string>> = {
   en: enTranslations,
   es: esTranslations,
   pt: ptTranslations,
@@ -26,7 +34,8 @@ const resources: Record<SupportedLanguage, Record<string, string>> = {
 export function loadLanguage(lang: SupportedLanguage): void {
   // Languages are now pre-loaded via static imports, so this function
   // is mainly for compatibility but could be used for validation
-  if (!resources[lang]) {
+  const resourceKey = localeToResourceMap[lang];
+  if (!resources[resourceKey]) {
     console.error(`Unsupported language: ${lang}`);
     return;
   }
@@ -35,11 +44,12 @@ export function loadLanguage(lang: SupportedLanguage): void {
 // Translation function with pluralization support
 export function translate(
   key: string, 
-  lang: SupportedLanguage = 'en', 
+  lang: SupportedLanguage = 'en-US', 
   vars?: TranslationVariables,
   count?: number
 ): string {
-  const dict = resources[lang] || resources.en;
+  const resourceKey = localeToResourceMap[lang] || 'en';
+  const dict = resources[resourceKey] || resources.en;
   
   // Handle pluralization
   let translationKey = key;
@@ -87,14 +97,14 @@ interface LanguageProviderProps {
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ 
   children, 
-  defaultLanguage = 'en' 
+  defaultLanguage = 'en-US' 
 }) => {
   // Initialize with saved language or default, preventing race condition
   const getInitialLanguage = (): SupportedLanguage => {
     try {
       const savedLang = localStorage.getItem('preferred-language') as SupportedLanguage;
       
-      if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang)) {
+      if (savedLang && ['en-US', 'es-ES', 'pt-PT', 'sv-SE'].includes(savedLang)) {
         return savedLang;
       } else {
       }
@@ -115,10 +125,10 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
       
       
       // Initialize all language files (they're pre-loaded via static imports)
-  loadLanguage('en');
-  loadLanguage('es');
-  loadLanguage('pt');
-  loadLanguage('sv');
+  loadLanguage('en-US');
+  loadLanguage('es-ES');
+  loadLanguage('pt-PT');
+  loadLanguage('sv-SE');
       
       // Verify current language is still correct after mount
       try {
@@ -130,7 +140,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
           needsUpdate: savedLang !== currentLanguage 
         });
         
-        if (savedLang && ['en', 'es', 'pt', 'sv'].includes(savedLang) && savedLang !== currentLanguage) {
+        if (savedLang && ['en-US', 'es-ES', 'pt-PT', 'sv-SE'].includes(savedLang) && savedLang !== currentLanguage) {
           setCurrentLanguage(savedLang);
         } else {
         }
@@ -162,7 +172,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
 
   // Function to set user language preference from auth (e.g., from JWT token)
   const setUserLanguagePreference = (lang: SupportedLanguage) => {
-    if (['en', 'es', 'pt', 'sv'].includes(lang)) {
+    if (['en-US', 'es-ES', 'pt-PT', 'sv-SE'].includes(lang)) {
       console.log('🔍 Setting user language preference from token:', lang);
       setLanguage(lang);
     }

@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedApiRequest } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface ModuleConfiguration {
   id: string;
@@ -67,10 +68,10 @@ const DEFAULT_CONFIGURATION = {
 };
 
 const MODULE_ICONS: Record<string, React.ReactNode> = {
-  'data_processing_engine': <Database className="w-5 h-5" />,
   'semantic_search_engine': <Search className="w-5 h-5" />,
   'ai_chat_integration': <MessageSquare className="w-5 h-5" />,
-  'survey_suggestions_generation': <Lightbulb className="w-5 h-5" />
+  'survey_suggestions_generation': <Lightbulb className="w-5 h-5" />,
+  'survey_builder': <Settings className="w-5 h-5" />
 };
 
 export const ModelConfigurationPanel = () => {
@@ -82,7 +83,7 @@ export const ModelConfigurationPanel = () => {
   const [personalities, setPersonalities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [activeModule, setActiveModule] = useState<string>('data_processing_engine');
+  const [activeModule, setActiveModule] = useState<string>('ai_chat_integration');
   const [expandedConfigs, setExpandedConfigs] = useState<Set<string>>(new Set());
 
   // Form states for each module
@@ -90,11 +91,6 @@ export const ModelConfigurationPanel = () => {
 
   // Static modules definition since we removed the backend endpoint
   const modules: Module[] = [
-    {
-      name: 'data_processing_engine',
-      display_name: 'Data Processing Engine',
-      description: 'AI model for processing and analyzing data'
-    },
     {
       name: 'semantic_search_engine', 
       display_name: 'Semantic Search Engine',
@@ -109,6 +105,11 @@ export const ModelConfigurationPanel = () => {
       name: 'survey_suggestions_generation',
       display_name: 'Survey Suggestions Generation',
       description: 'AI model for generating survey analysis suggestions and insights'
+    },
+    {
+      name: 'survey_builder',
+      display_name: 'Survey Builder',
+      description: 'AI model for building surveys through conversation'
     }
   ];
 
@@ -139,7 +140,7 @@ export const ModelConfigurationPanel = () => {
   const loadLlmSettings = async () => {
     try {
       console.log('🔄 Loading LLM settings...');
-      const data = await authenticatedApiRequest<LlmSetting[]>('http://localhost:8000/api/llm-settings');
+      const data = await authenticatedApiRequest<LlmSetting[]>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.BASE));
       console.log('✅ LLM settings loaded:', data);
       setLlmSettings(data || []);
       console.log('✅ LLM settings state updated:', data?.length || 0, 'items');
@@ -155,7 +156,7 @@ export const ModelConfigurationPanel = () => {
 
   const loadPersonalities = async () => {
     try {
-      const data = await authenticatedApiRequest<any[]>('http://localhost:8000/api/personalities');
+      const data = await authenticatedApiRequest<any[]>(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES));
       setPersonalities(data || []);
     } catch (error) {
       console.error('Error loading personalities:', error);
@@ -170,7 +171,7 @@ export const ModelConfigurationPanel = () => {
   const loadConfigurations = async () => {
     try {
       console.log('🔄 Loading module configurations...');
-      const data = await authenticatedApiRequest<ModuleConfiguration[]>('http://localhost:8000/api/module-configurations');
+      const data = await authenticatedApiRequest<ModuleConfiguration[]>(buildApiUrl(API_CONFIG.ENDPOINTS.MODULE_CONFIGURATIONS.BASE));
       console.log('✅ Module configurations loaded:', data);
       
       setConfigurations(data || []);
@@ -228,7 +229,7 @@ export const ModelConfigurationPanel = () => {
 
   const getDefaultModelForModule = (moduleName: string): string => {
     const defaults: Record<string, string> = {
-      'data_processing_engine': 'gpt-4o-mini',
+      'survey_suggestions_generation': 'gpt-4o-mini',
       'semantic_search_engine': 'text-embedding-3-small',
       'ai_chat_integration': 'gpt-4o'
     };
@@ -463,11 +464,10 @@ export const ModelConfigurationPanel = () => {
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         max_completion_tokens: config.max_completion_tokens,
-        active: config.active,
         ai_personality_id: config.ai_personality_id === 'none' ? null : config.ai_personality_id
       };
 
-      const data = await authenticatedApiRequest<ModuleConfiguration>('http://localhost:8000/api/module-configurations', {
+      const data = await authenticatedApiRequest<ModuleConfiguration>(buildApiUrl(API_CONFIG.ENDPOINTS.MODULE_CONFIGURATIONS.BASE), {
         method: 'POST',
         body: JSON.stringify(payload)
       });

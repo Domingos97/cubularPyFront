@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { User, AuthContextType } from '@/types/user';
+import { API_CONFIG, APP_CONFIG, buildApiUrl } from '@/config';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -25,7 +26,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (email: string, password: string) => {
     try {
       
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.AUTH.LOGIN), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -69,7 +70,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       // Register API call
       
-      const response = await fetch('http://localhost:8000/api/auth/register', {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.AUTH.REGISTER), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, username, password })
@@ -84,16 +85,62 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Google login session handler
+  // Google login session handler + Email confirmation auto-login
   useEffect(() => {
     // Check for JWT in URL after Google OAuth2 redirect
     const url = new URL(window.location.href);
     const token = url.searchParams.get('token');
+    
+    // Check for email confirmation auto-login
+    const accessToken = url.searchParams.get('access_token');
+    const refreshToken = url.searchParams.get('refresh_token');
+    const confirmed = url.searchParams.get('confirmed');
+    const message = url.searchParams.get('message');
+    
     if (token) {
       localStorage.setItem('authToken', token);
       // User will be set after profile fetch
       // Remove token from URL
       url.searchParams.delete('token');
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    } else if (accessToken && refreshToken && confirmed === 'true') {
+      // Handle email confirmation auto-login
+      localStorage.setItem('authToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('tokenExpiry', (Date.now() + (24 * 60 * 60 * 1000)).toString()); // 24 hours
+      
+      // Decode token to get user info
+      try {
+        const decoded: any = jwtDecode(accessToken);
+        const userData = { 
+          id: decoded.sub || decoded.id,
+          email: decoded.email,
+          role: decoded.role,
+          language_preference: decoded.language || 'en',
+          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
+        };
+        setUser(userData);
+        
+        // Show success message
+        if (message) {
+          // Import and use toast notification
+          import('@/hooks/use-toast').then(({ toast }) => {
+            toast({
+              title: "Email Confirmed! 🎉",
+              description: decodeURIComponent(message),
+              duration: 5000,
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Failed to decode confirmation token:', error);
+      }
+      
+      // Clean up URL parameters
+      url.searchParams.delete('access_token');
+      url.searchParams.delete('refresh_token');
+      url.searchParams.delete('confirmed');
+      url.searchParams.delete('message');
       window.history.replaceState({}, document.title, url.pathname + url.search);
     }
   }, []);
@@ -104,7 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     // Call logout endpoint to revoke tokens
     try {
-      await fetch('http://localhost:8000/api/auth/logout', {
+      await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.AUTH.LOGOUT), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken })
@@ -127,7 +174,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/refresh', {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.AUTH.REFRESH), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken })

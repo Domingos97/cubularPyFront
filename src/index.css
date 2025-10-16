@@ -109,3 +109,46 @@
   padding: 16px;
   min-height: 280px;
 }
+
+/* Thinking cube animation */
+@keyframes thinking-cube {
+  0%, 100% { 
+    transform: scale(1) rotateY(0deg) rotateX(0deg); 
+  }
+  25% { 
+    transform: scale(1.05) rotateY(90deg) rotateX(15deg); 
+  }
+  50% { 
+    transform: scale(1.1) rotateY(180deg) rotateX(0deg); 
+  }
+  75% { 
+    transform: scale(1.05) rotateY(270deg) rotateX(-15deg); 
+  }
+}
+
+@keyframes cube-rotate {
+  0% { 
+    transform: rotateX(0deg) rotateY(0deg); 
+  }
+  100% { 
+    transform: rotateX(360deg) rotateY(360deg); 
+  }
+}
+
+@keyframes cube-glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 15px rgba(147, 51, 234, 0.5), 0 0 25px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.thinking-cube {
+  animation: thinking-cube 2.5s ease-in-out infinite;
+  perspective: 100px;
+}
+
+.cube-face {
+  animation: cube-rotate 4s linear infinite, cube-glow 2s ease-in-out infinite;
+}

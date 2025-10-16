@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ThinkingCube } from "@/components/ui/ThinkingCube";
 import { authenticatedFetch } from "@/utils/api";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatSessions } from "@/hooks/useChatSessions";
@@ -13,6 +14,7 @@ import { InlineDataSnapshot } from "@/components/chat/InlineDataSnapshot";
 import { Survey } from "@/types/survey";
 import { FileSelectionComponent } from "./FileSelectionComponent";
 import { useTranslation } from "@/resources/i18n";
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface Message {
   id: string;
@@ -158,7 +160,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         // Load survey data to update the selected survey
         const loadSurveyFromSession = async () => {
           try {
-            const surveyRes = await authenticatedFetch(`http://localhost:8000/api/surveys/${sessionSurveyId}`);
+            const surveyRes = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${sessionSurveyId}`));
             if (surveyRes.ok) {
               const surveyData = await surveyRes.json();
               onSurveyChange(surveyData);
@@ -180,6 +182,21 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
     }
   }, [currentSession?.survey_ids, currentSession?.id, selectedSurvey?.id]); // Add currentSession.id to dependencies
 
+  // Validate session category - clear survey builder sessions from survey results
+  useEffect(() => {
+    if (currentSession && currentSession.category === 'survey_builder') {
+      console.log('ChatComponent: Survey builder session detected in survey results, clearing session');
+      clearCurrentSession();
+      // Clear URL parameter to prevent reload loops
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('session')) {
+        urlParams.delete('session');
+        const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [currentSession?.category, currentSession?.id, clearCurrentSession]);
+
   // Handle session deletion - clear UI state when session becomes null
   useEffect(() => {
     if (!currentSession) {
@@ -200,7 +217,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   const loadSuggestions = async (surveyId: string) => {
     try {
       // Use GET request to fetch existing suggestions instead of generating new ones
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${surveyId}`), {
         method: 'GET'
       });
       
@@ -283,7 +300,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         chatRequestBody.personalityId = selectedPersonalityId;
       }
 
-      const response = await authenticatedFetch('http://localhost:8000/api/surveys/semantic-chat', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SEMANTIC_CHAT), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(chatRequestBody)
@@ -306,7 +323,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
       const assistantResponse: Message = {
         id: `assistant-${Date.now()}`,
-        content: data.conversationalResponse || 'I apologize, but I encountered an error processing your question.',
+        content: data.response || 'I apologize, but I encountered an error processing your question.',
         sender: "assistant",
         timestamp: new Date(),
         dataSnapshot: data.dataSnapshot,
@@ -321,27 +338,9 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       // Remove typing indicator and add response to local UI
       setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([assistantResponse]));
 
-      // Save both user and assistant messages to database (this will also update currentMessages)
-      try {
-        if (sessionForSaving) {
-          // Save user message
-          await saveMessage(content, 'user', undefined, sessionForSaving);
-          
-          // Save assistant message
-          await saveMessage(
-            assistantResponse.content, 
-            'assistant', 
-            assistantResponse.dataSnapshot, 
-            sessionForSaving,
-            assistantResponse.confidence?.score,
-            selectedPersonalityId
-          );
-          
-          console.log('✅ Messages saved successfully to database');
-        }
-      } catch (error) {
-        console.error('❌ Error saving messages to database:', error);
-      }
+      // Messages are automatically saved by the backend API (surveys/semantic-chat endpoint)
+      // No need to save them manually here to avoid duplication
+      console.log('✅ Messages automatically saved by backend API');
 
       setInputMessage('');
     } catch (error) {
@@ -354,15 +353,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         timestamp: new Date()
       }]));
 
-      // Still save the user message even if API call failed
-      try {
-        if (currentSession?.id) {
-          await saveMessage(content, 'user', undefined, currentSession.id);
-          console.log('✅ User message saved despite API failure');
-        }
-      } catch (saveError) {
-        console.error('❌ Error saving user message after API failure:', saveError);
-      }
+      // Still log the user message attempt for debugging
+      console.log('⚠️ Chat API failed, but messages will be handled by error recovery logic');
     } finally {
       setIsSending(false);
       setClickedSuggestion(null);
@@ -408,6 +400,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         selectedPersonalityId={selectedPersonalityId}
         onPersonalityChange={onPersonalityChange || (() => {})}
         selectedFiles={selectedFiles}
+        context="ai_chat_integration" // Filter out survey builder personality
+        // No categoryFilter - let it show all sessions for the selected survey except survey_builder (will be handled in ChatSidebar)
         onNewChat={async (sessionId) => {
           await loadSession(sessionId);
           // Reload sessions to show the new one (only if we have a survey selected)
@@ -429,7 +423,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                   !failedSurveyLoadsRef.current.has(sessionData.session.survey_ids[0])) {
                 // Load survey data to update the selected survey
                 try {
-                  const surveyRes = await authenticatedFetch(`http://localhost:8000/api/surveys/${sessionData.session.survey_ids[0]}`);
+                  const surveyRes = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${sessionData.session.survey_ids[0]}`));
                   if (surveyRes.ok) {
                     const surveyData = await surveyRes.json();
                     onSurveyChange(surveyData);
@@ -574,8 +568,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                         disabled={isSending}
                       >
                         {isSending && clickedSuggestion === question ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                          <div className="flex items-center gap-3">
+                            <ThinkingCube size="sm" />
                             <span>{t('surveyResults.chat.analyzing')}</span>
                           </div>
                         ) : (
@@ -633,7 +627,15 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                         }
                       }}
                     >
-                      <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      {/* Special handling for thinking/typing indicator */}
+                      {message.content.includes(t('surveyResults.chat.aiThinking')) ? (
+                        <div className="flex items-center gap-3">
+                          <ThinkingCube size="md" />
+                          <span className="text-gray-300">{t('surveyResults.chat.aiThinking')}</span>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      )}
                       
                       {/* Inline Data Snapshot - Show when inline mode is enabled */}
                       {showDataInline && message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && (

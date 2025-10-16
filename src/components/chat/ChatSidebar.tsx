@@ -27,12 +27,31 @@ interface ChatSidebarProps {
   selectedPersonalityId: string | null;
   onPersonalityChange: (personalityId: string) => void;
   selectedFiles?: string[];
+  categoryFilter?: string | string[]; // Filter sessions by category
+  context?: 'ai_chat_integration' | 'survey_builder' | 'all'; // Context for personality filtering
 }
 
-export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatSelect, selectedPersonalityId, onPersonalityChange, selectedFiles }: ChatSidebarProps) {
+export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatSelect, selectedPersonalityId, onPersonalityChange, selectedFiles, categoryFilter, context = 'all' }: ChatSidebarProps) {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const { chatSessions, createNewSession, loadSession, deleteSession, updateSessionSurveys, currentSession, isLoading, isLoadingSession, loadChatSessions, clearCurrentSession, clearAllSessions, currentMessages } = useChatSessions();
+  
+  // Add filtering logic for chat sessions
+  const filteredChatSessions = chatSessions.filter(session => {
+    // Always exclude survey_builder sessions in survey-results context
+    if (session.category === 'survey_builder') {
+      return false;
+    }
+    
+    // Apply additional category filter if provided
+    if (!categoryFilter) return true; // No additional filter applied
+    
+    if (Array.isArray(categoryFilter)) {
+      return categoryFilter.includes(session.category);
+    } else {
+      return session.category === categoryFilter;
+    }
+  });
   const { surveys } = useSurveys();
   const { t } = useTranslation();
   
@@ -301,19 +320,19 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
     
     // Only auto-load if:
     // 1. We have a selected survey
-    // 2. We have sessions for that survey 
+    // 2. We have filtered sessions for that survey 
     // 3. No current session is active
     // 4. No session ID in URL
     // 5. Not currently loading
-    if (selectedSurvey?.id && chatSessions.length > 0 && !currentSession && !sessionIdFromUrl && !isLoadingSession) {
-      const lastSession = chatSessions[0]; // Most recent session for this survey
+    if (selectedSurvey?.id && filteredChatSessions.length > 0 && !currentSession && !sessionIdFromUrl && !isLoadingSession) {
+      const lastSession = filteredChatSessions[0]; // Most recent filtered session for this survey
       
       if (onChatSelect) {
         onChatSelect(lastSession.id);
       }
       navigate(`/survey-results?session=${lastSession.id}`, { replace: true });
     }
-  }, [selectedSurvey?.id, chatSessions, currentSession, isLoadingSession, onChatSelect, navigate, location.search]);
+  }, [selectedSurvey?.id, filteredChatSessions, currentSession, isLoadingSession, onChatSelect, navigate, location.search]);
 
   const handleNewChat = async () => {
     if (selectedSurvey) {
@@ -400,6 +419,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
             onPersonalityChange={onPersonalityChange}
             className="w-full"
             value={selectedPersonalityId || ''}
+            context={context}
           />
         </div>
       </div>
@@ -439,7 +459,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
           <div className="space-y-2">
             {isLoading ? (
               <div className="text-xs text-gray-400">{t('chatSidebar.loadingChats')}</div>
-            ) : chatSessions.length === 0 ? (
+            ) : filteredChatSessions.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-xs text-gray-400 mb-3">
                   {selectedSurvey 
@@ -465,7 +485,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                 )}
               </div>
             ) : (
-              chatSessions.map(session => {
+              filteredChatSessions.map(session => {
                 const sessionPersonality = getPersonalityById(session.personality_id);
                 return (
                 <div

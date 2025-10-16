@@ -1,3 +1,5 @@
+import { API_CONFIG, APP_CONFIG, buildApiUrl } from '@/config';
+
 export interface LLMSettings {
   id?: string;
   provider: string;
@@ -10,11 +12,11 @@ export interface LLMSettings {
 }
 
 class LLMSettingsAPI {
-  private baseUrl = 'http://localhost:8000/api/llm-settings';
+  private baseUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.BASE);
 
   // Get authentication token from localStorage
   private async getAuthToken(): Promise<string | null> {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
     
     if (!token) {
       console.warn('No authentication token found. User may need to log in.');
@@ -97,7 +99,38 @@ class LLMSettingsAPI {
    * Get active LLM settings (available to all authenticated users)
    */
   async getActiveLLMSettings(): Promise<LLMSettings[]> {
-    return this.makeRequest<LLMSettings[]>('/active/list');
+    const activeUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.ACTIVE_LIST);
+    const token = await this.getAuthToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(activeUrl, {
+      headers,
+    });
+
+    if (response.status === 401) {
+      localStorage.removeItem('authToken');
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    if (response.status === 403) {
+      throw new Error('Access denied. Admin privileges required.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ 
+        error: `HTTP ${response.status}: ${response.statusText}` 
+      }));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 
   /**
@@ -140,19 +173,84 @@ class LLMSettingsAPI {
    * This is the recommended method for saving settings from the frontend
    */
   async upsertLLMSetting(settings: Omit<LLMSettings, 'id' | 'created_at' | 'updated_at' | 'created_by'>): Promise<LLMSettings> {
-    return this.makeRequest<LLMSettings>('/upsert', {
+    const upsertUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.UPSERT);
+    const token = await this.getAuthToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(upsertUrl, {
       method: 'POST',
+      headers,
       body: JSON.stringify(settings),
     });
+
+    if (response.status === 401) {
+      localStorage.removeItem('authToken');
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    if (response.status === 403) {
+      throw new Error('Access denied. Admin privileges required.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ 
+        error: `HTTP ${response.status}: ${response.statusText}` 
+      }));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 
   /**
    * Delete an LLM setting
    */
   async deleteLLMSetting(id: string): Promise<void> {
-    return this.makeRequest<void>(`/${id}`, {
+    const deleteUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.DELETE(id));
+    const token = await this.getAuthToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(deleteUrl, {
       method: 'DELETE',
+      headers,
     });
+
+    if (response.status === 401) {
+      localStorage.removeItem('authToken');
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    if (response.status === 403) {
+      throw new Error('Access denied. Admin privileges required.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ 
+        error: `HTTP ${response.status}: ${response.statusText}` 
+      }));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return;
+    }
+
+    return response.json();
   }
 
   /**
@@ -166,7 +264,38 @@ class LLMSettingsAPI {
    * Get decrypted API key by provider
    */
   async getDecryptedApiKeyByProvider(provider: string): Promise<{ api_key: string | null }> {
-    return this.makeRequest<{ api_key: string | null }>(`/provider/${provider}/decrypted-api-key`);
+    const keyUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.PROVIDER_KEY(provider));
+    const token = await this.getAuthToken();
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(keyUrl, {
+      headers,
+    });
+
+    if (response.status === 401) {
+      localStorage.removeItem('authToken');
+      throw new Error('Authentication required. Please log in again.');
+    }
+    
+    if (response.status === 403) {
+      throw new Error('Access denied. Admin privileges required.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ 
+        error: `HTTP ${response.status}: ${response.statusText}` 
+      }));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 
   /**

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedFetch, authenticatedApiRequest } from '@/utils/api';
+import { buildApiUrl, API_CONFIG } from '@/config';
 import { 
   MessageSquare, 
   Clock, 
@@ -86,11 +87,10 @@ const UserRequests = ({ userId }: UserRequestsProps) => {
   const fetchUserNotifications = async () => {
     try {
       setLoading(true);
-      const data = await authenticatedApiRequest<{data: UserNotification[]}>('http://localhost:8000/api/notifications/admin/all?limit=1000');
+      const data = await authenticatedApiRequest<UserNotification[]>(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.ADMIN.USER(userId) + '?limit=1000'));
       
-      // Filter notifications for this specific user
-      const userNotifications = (data.data || []).filter((n: UserNotification) => n.user_id === userId);
-      setNotifications(userNotifications);
+      // No need to filter since the endpoint already returns notifications for the specific user
+      setNotifications(data || []);
     } catch (error) {
       console.error('Error fetching user notifications:', error);
       toast({
@@ -120,7 +120,7 @@ const UserRequests = ({ userId }: UserRequestsProps) => {
       if (newStatus) updateData.status = newStatus;
       if (adminResponse.trim()) updateData.admin_response = adminResponse.trim();
 
-      const response = await authenticatedFetch(`http://localhost:8000/api/notifications/${notificationId}`, {
+      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.NOTIFICATIONS.BASE}/${notificationId}`), {
         method: 'PUT',
         body: JSON.stringify(updateData)
       });

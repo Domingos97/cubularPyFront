@@ -9,6 +9,7 @@ import { authenticatedFetch, markNotificationAsRead, getUnreadNotificationCount 
 import { useAuth } from '@/hooks/useAuth';
 import { useTranslation } from '@/resources/i18n';
 import { useNavigate } from 'react-router-dom';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface UserNotification {
   id: string;
@@ -94,7 +95,7 @@ const UserNotificationsBell = () => {
     
     try {
       setLoading(true);
-      const response = await authenticatedFetch('http://localhost:8000/api/notifications/my?limit=50');
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY + '?limit=50'));
       
       if (response.ok) {
         const data = await response.json();
@@ -130,6 +131,49 @@ const UserNotificationsBell = () => {
       setLoading(false);
     }
   }, [user?.id, isOpen, toast, t]);
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    if (!user?.id || unreadCount === 0) return;
+    
+    try {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        // Update local state immediately
+        setNotifications(prev => 
+          prev.map(n => ({ ...n, is_read: true }))
+        );
+        setUnreadCount(0);
+        
+        console.log('All notifications marked as read');
+      } else {
+        throw new Error(`Failed to mark notifications as read: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+      // Don't show toast error for automatic operations
+    }
+  }, [user?.id, unreadCount]);
+
+  const handleBellClick = useCallback(async () => {
+    const wasOpen = isOpen;
+    setIsOpen(!isOpen);
+    
+    if (!wasOpen) {
+      // Bell is being opened - fetch notifications first
+      await fetchUserNotifications();
+      
+      // Then mark all as read if there are unread notifications
+      if (unreadCount > 0) {
+        await markAllNotificationsAsRead();
+      }
+    }
+  }, [isOpen, fetchUserNotifications, markAllNotificationsAsRead, unreadCount]);
 
   const handleNotificationClick = async (notification: UserNotification) => {
     try {
@@ -205,12 +249,7 @@ const UserNotificationsBell = () => {
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) {
-            fetchUserNotifications();
-          }
-        }}
+        onClick={handleBellClick}
         className="relative hover:bg-gray-700"
       >
         <Bell className="w-5 h-5 text-gray-300" />

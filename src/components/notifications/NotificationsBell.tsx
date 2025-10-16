@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { authenticatedApiRequest } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/resources/i18n';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface NotificationWithUser {
   id: string;
@@ -82,7 +83,7 @@ const NotificationsBell = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const data = await authenticatedApiRequest<{data: NotificationWithUser[]}>('http://localhost:8000/api/notifications/admin/all?limit=100');
+      const data = await authenticatedApiRequest<{data: NotificationWithUser[]}>(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.ADMIN.ALL + '?limit=100'));
       
       const allNotifications = data.data || [];
       

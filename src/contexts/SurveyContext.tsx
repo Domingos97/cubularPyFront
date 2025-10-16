@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authenticatedApiRequest } from '../utils/api';
 import { useAuth } from '../hooks/useAuth';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 export interface Survey {
   id: string;
@@ -33,15 +34,12 @@ export const SurveyProvider: React.FC<SurveyProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
-  // Cache duration in milliseconds (2 minutes for surveys)
-  const CACHE_DURATION = 2 * 60 * 1000;
-
   const fetchSurveys = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const data = await authenticatedApiRequest('http://localhost:8000/api/surveys/my-surveys');
+      const data = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.MY_SURVEYS));
       
       setSurveys(data || []);
       setLastFetchTime(Date.now());
@@ -56,7 +54,7 @@ export const SurveyProvider: React.FC<SurveyProviderProps> = ({ children }) => {
 
   const refreshSurveys = async () => {
     const { clearCache } = await import('../utils/requestDeduplication');
-    clearCache('API-GET-http://localhost:8000/api/surveys/my-surveys');
+    clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.MY_SURVEYS)}`);
     setLastFetchTime(0); // Reset cache
     await fetchSurveys(true);
   };

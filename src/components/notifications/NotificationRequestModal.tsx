@@ -13,13 +13,15 @@ import { useToast } from '@/hooks/use-toast';
 import { NotificationType, NotificationStatus, CreateNotificationRequest, UserNotification, AdminResponse } from '@/types/notifications';
 import { authenticatedFetch } from '@/utils/api';
 import { useAuth } from '@/hooks/useAuth';
+import { buildApiUrl, API_CONFIG } from '@/config';
 import { useTranslation } from '@/resources/i18n';
 
 interface NotificationRequestModalProps {
   onNotificationSent?: () => void;
+  children?: React.ReactNode;
 }
 
-const NotificationRequestModal = ({ onNotificationSent }: NotificationRequestModalProps) => {
+const NotificationRequestModal = ({ onNotificationSent, children }: NotificationRequestModalProps) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,7 +75,7 @@ const NotificationRequestModal = ({ onNotificationSent }: NotificationRequestMod
     setLoading(true);
 
     try {
-      const response = await authenticatedFetch('http://localhost:8000/api/notifications', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.BASE), {
         method: 'POST',
         body: JSON.stringify({
           type: formData.type,
@@ -122,10 +124,12 @@ const NotificationRequestModal = ({ onNotificationSent }: NotificationRequestMod
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Bell className="w-4 h-4 mr-2" />
-          {t('notifications.contactAdmin')}
-        </Button>
+        {children || (
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <Bell className="w-4 h-4 mr-2" />
+            {t('notifications.contactAdmin')}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-2xl bg-gray-900 border-gray-700">
         <DialogHeader>
@@ -403,14 +407,15 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
     
     setLoading(true);
     try {
-      const response = await authenticatedFetch('http://localhost:8000/api/notifications/my');
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY));
       
       if (!response.ok) {
         throw new Error('Failed to load notifications');
       }
       
       const result = await response.json();
-      setNotifications(result.data || []);
+      // Backend returns notifications array directly, not wrapped in data property
+      setNotifications(Array.isArray(result) ? result : result.data || []);
       
     } catch (error) {
       console.error('Error loading notifications:', error);

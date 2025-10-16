@@ -10,8 +10,10 @@ import { useSurveys } from '@/contexts/SurveyContext';
 import { Survey } from '@/types/survey';
 import { authenticatedFetch } from '@/utils/api';
 import { useAuth } from '@/hooks/useAuth';
+import { usePersonalities } from '@/hooks/usePersonalities';
 import { useTranslation } from '@/resources/i18n';
 import { MessageCircle, FileText, CheckCircle, AlertCircle, Loader2, Brain } from 'lucide-react';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface SurveyFile {
   id: string;
@@ -47,9 +49,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   const [availableFiles, setAvailableFiles] = useState<SurveyFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [selectedPersonality, setSelectedPersonality] = useState<string | null>(null);
-  const [availablePersonalities, setAvailablePersonalities] = useState<AIPersonality[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [isLoadingPersonalities, setIsLoadingPersonalities] = useState(false);
   const [isValidatingAccess, setIsValidatingAccess] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -58,6 +58,13 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
   const { surveys } = useSurveys();
   const { user } = useAuth();
   const { t } = useTranslation();
+  
+  // Use the personalities hook to get the user's preferred personality
+  const { 
+    personalities: availablePersonalities, 
+    selectedPersonality: userPreferredPersonality,
+    isLoading: isLoadingPersonalities 
+  } = usePersonalities('ai_chat_integration');
 
   // Use refs to track initialized state and prevent infinite loops
   const initializedRef = useRef(false);
@@ -85,12 +92,12 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
         setSelectedFiles([]);
         setAccessError(null);
         
-        // Set initial personality from parent or reset
-        setSelectedPersonality(currentPersonalityId);
-        
-        // Load personalities only once
-        if (availablePersonalities.length === 0) {
-          loadPersonalities();
+        // Set initial personality from parent or use user's preferred personality
+        if (currentPersonalityId) {
+          setSelectedPersonality(currentPersonalityId);
+        } else if (userPreferredPersonality) {
+          // Use user's preferred personality as default
+          setSelectedPersonality(userPreferredPersonality.id);
         }
         
         // Mark as initialized
@@ -133,6 +140,14 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     }
   }, [isOpen, selectedPersonalityId, selectedPersonality]); // Separate effect for personality
 
+  // Set personality to user's preferred when it becomes available (and no personality is already selected)
+  useEffect(() => {
+    if (isOpen && !selectedPersonality && userPreferredPersonality && availablePersonalities.length > 0) {
+      console.log('🔍 FRONTEND: Setting user preferred personality:', userPreferredPersonality.id);
+      setSelectedPersonality(userPreferredPersonality.id);
+    }
+  }, [isOpen, userPreferredPersonality, availablePersonalities, selectedPersonality]);
+
   // Load files when survey is selected (only if different from current)
   useEffect(() => {
     console.log('🔍 FRONTEND: Survey selection effect triggered:', {
@@ -170,7 +185,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       setIsValidatingAccess(true);
       
       console.log('🔍 FRONTEND: Making API call to:', `/api/surveys/${surveyId}/access-check`);
-      const accessResponse = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}/access-check`, {
+      const accessResponse = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${surveyId}/access-check`), {
         method: 'GET'
       });
 
@@ -235,31 +250,6 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     }
   }, [isLoadingFiles, t]); // Add dependency array for useCallback
 
-  const loadPersonalities = useCallback(async () => {
-    if (isLoadingPersonalities || availablePersonalities.length > 0) return; // Prevent concurrent calls and avoid reloading
-    
-    setIsLoadingPersonalities(true);
-    try {
-      const response = await authenticatedFetch('http://localhost:8000/api/personalities');
-      if (!response.ok) {
-        throw new Error('Failed to load personalities');
-      }
-      const personalities = await response.json();
-      const activePersonalities = personalities.filter((p: AIPersonality) => p.is_active);
-      setAvailablePersonalities(activePersonalities);
-      
-      // Auto-select the first personality if none is selected and we have personalities
-      if (!selectedPersonality && activePersonalities.length > 0) {
-        setSelectedPersonality(activePersonalities[0].id);
-      }
-    } catch (error) {
-      console.error('Error loading personalities:', error);
-      setAccessError('Failed to load AI personalities. Please try again.');
-    } finally {
-      setIsLoadingPersonalities(false);
-    }
-  }, [isLoadingPersonalities, availablePersonalities.length, selectedPersonality]);
-
   const handleFileToggle = (fileId: string) => {
     setSelectedFiles(prev => 
       prev.includes(fileId) 
@@ -286,14 +276,14 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
     try {
       console.log('🔍 PreChatSetupModal: Creating session with personality:', selectedPersonality);
       
-      const sessionResponse = await authenticatedFetch('http://localhost:8000/api/chat/sessions/create-optimized', {
+      const sessionResponse = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/create-optimized`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          surveyIds: [selectedSurvey.id], // Send as array
-          fileIds: selectedFiles,
+          survey_ids: [selectedSurvey.id], // Use snake_case to match backend
+          selected_file_ids: selectedFiles, // Use snake_case to match backend
           title: `New Chat`, // Use placeholder title that will be updated by first message
-          personalityId: selectedPersonality,
+          personality_id: selectedPersonality, // Use snake_case to match backend
           category: selectedSurvey.category || 'survey-analysis' // Include category
         })
       });
@@ -305,8 +295,8 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
 
       const sessionData = await sessionResponse.json();
       
-      // Notify parent component with the session ID from the response
-      const sessionId = sessionData.session?.id || sessionData.sessionId;
+      // Get session ID from the consistent response format
+      const sessionId = sessionData.session?.id;
       if (!sessionId) {
         throw new Error(t('preChatModal.errors.invalidSessionResponse') || 'Invalid session response - no session ID received');
       }

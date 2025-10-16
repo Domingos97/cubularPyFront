@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedFetch } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import { Plus, Edit, Trash2, Crown, DollarSign, Calendar, Users } from 'lucide-react';
 
 interface Plan {
@@ -24,7 +25,10 @@ interface Plan {
   billing: 'monthly' | 'yearly';
   is_active: boolean;
   features?: string[];
-  max_users?: number | string;
+  max_surveys?: number | string;
+  max_responses?: number | string;
+  priority_support?: boolean;
+  api_access?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -38,7 +42,10 @@ interface PlanFormData {
   billing: 'monthly' | 'yearly';
   is_active: boolean;
   features: string;
-  max_users: number;
+  max_surveys: number;
+  max_responses: number;
+  priority_support: boolean;
+  api_access: boolean;
 }
 
 const AdminPlansManagement: React.FC = () => {
@@ -58,7 +65,10 @@ const AdminPlansManagement: React.FC = () => {
     billing: 'monthly',
     is_active: true,
     features: '',
-    max_users: 1
+    max_surveys: 10,
+    max_responses: 1000,
+    priority_support: false,
+    api_access: false
   });
 
   useEffect(() => {
@@ -68,7 +78,7 @@ const AdminPlansManagement: React.FC = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const response = await authenticatedFetch('http://localhost:8000/api/plans');
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.BASE));
       if (response.ok) {
         const data = await response.json();
         setPlans(data);
@@ -104,7 +114,10 @@ const AdminPlansManagement: React.FC = () => {
       billing: 'monthly',
       is_active: true,
       features: '',
-      max_users: 1
+      max_surveys: 10,
+      max_responses: 1000,
+      priority_support: false,
+      api_access: false
     });
   };
 
@@ -112,10 +125,13 @@ const AdminPlansManagement: React.FC = () => {
     try {
       const planData = {
         ...formData,
-        features: formData.features.split('\n').filter(f => f.trim() !== '')
+        features: formData.features
+          .split('\n')
+          .map(f => f.trim())
+          .filter(f => f.length > 0)
       };
 
-      const response = await authenticatedFetch('http://localhost:8000/api/plans', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.BASE), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -156,7 +172,10 @@ const AdminPlansManagement: React.FC = () => {
       billing: plan.billing,
       is_active: plan.is_active,
       features: plan.features?.join('\n') || '',
-      max_users: Number(plan.max_users) || 1
+      max_surveys: Number(plan.max_surveys) || 10,
+      max_responses: Number(plan.max_responses) || 1000,
+      priority_support: plan.priority_support || false,
+      api_access: plan.api_access || false
     });
     setShowEditDialog(true);
   };
@@ -167,10 +186,13 @@ const AdminPlansManagement: React.FC = () => {
     try {
       const planData = {
         ...formData,
-        features: formData.features.split('\n').filter(f => f.trim() !== '')
+        features: formData.features
+          .split('\n')
+          .map(f => f.trim())
+          .filter(f => f.length > 0)
       };
 
-      const response = await authenticatedFetch(`http://localhost:8000/api/plans/${editingPlan.id}`, {
+      const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.BASE)}/${editingPlan.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -203,7 +225,7 @@ const AdminPlansManagement: React.FC = () => {
 
   const handleDeletePlan = async (planId: string) => {
     try {
-      const response = await authenticatedFetch(`http://localhost:8000/api/plans/${planId}`, {
+      const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.BASE)}/${planId}`, {
         method: 'DELETE'
       });
 
@@ -225,132 +247,168 @@ const AdminPlansManagement: React.FC = () => {
         variant: 'destructive'
       });
     }
-  };
+};
 
-  const PlanForm = ({ onSubmit, submitText }: { onSubmit: () => void; submitText: string }) => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="name">Name</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => handleInputChange('name', e.target.value)}
-            placeholder="e.g., basic, premium, enterprise"
-          />
-        </div>
-        <div>
-          <Label htmlFor="display_name">Display Name</Label>
-          <Input
-            id="display_name"
-            value={formData.display_name}
-            onChange={(e) => handleInputChange('display_name', e.target.value)}
-            placeholder="e.g., Basic Plan, Premium Plan"
-          />
-        </div>
-      </div>
-
+// Move PlanForm outside to prevent re-creation on every render
+const PlanForm = ({ 
+  formData, 
+  handleInputChange, 
+  onSubmit, 
+  submitText, 
+  onCancel 
+}: { 
+  formData: PlanFormData;
+  handleInputChange: (field: keyof PlanFormData, value: any) => void;
+  onSubmit: () => void; 
+  submitText: string;
+  onCancel: () => void;
+}) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
       <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => handleInputChange('description', e.target.value)}
-          placeholder="Plan description..."
-          rows={3}
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <Label htmlFor="price">Price</Label>
-          <Input
-            id="price"
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.price}
-            onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="currency">Currency</Label>
-          <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="GBP">GBP</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="billing">Billing</Label>
-          <Select value={formData.billing} onValueChange={(value: 'monthly' | 'yearly') => handleInputChange('billing', value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="yearly">Yearly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="max_users">Max Users</Label>
+        <Label htmlFor="name">Name</Label>
         <Input
-          id="max_users"
-          type="number"
-          min="1"
-          value={formData.max_users}
-          onChange={(e) => handleInputChange('max_users', parseInt(e.target.value) || 1)}
+          id="name"
+          value={formData.name}
+          onChange={(e) => handleInputChange('name', e.target.value)}
+          placeholder="e.g., basic, premium, enterprise"
         />
       </div>
-
       <div>
-        <Label htmlFor="features">Features (one per line)</Label>
-        <Textarea
-          id="features"
-          value={formData.features}
-          onChange={(e) => handleInputChange('features', e.target.value)}
-          placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
-          rows={4}
+        <Label htmlFor="display_name">Display Name</Label>
+        <Input
+          id="display_name"
+          value={formData.display_name}
+          onChange={(e) => handleInputChange('display_name', e.target.value)}
+          placeholder="e.g., Basic Plan, Premium Plan"
         />
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="is_active"
-          checked={formData.is_active}
-          onCheckedChange={(checked) => handleInputChange('is_active', checked)}
-        />
-        <Label htmlFor="is_active">Active</Label>
-      </div>
-
-      <div className="flex justify-end space-x-2">
-        <Button
-          variant="outline"
-          onClick={() => {
-            setShowCreateDialog(false);
-            setShowEditDialog(false);
-            setEditingPlan(null);
-            resetForm();
-          }}
-        >
-          Cancel
-        </Button>
-        <Button onClick={onSubmit}>
-          {submitText}
-        </Button>
       </div>
     </div>
-  );
 
-  if (loading) {
+    <div>
+      <Label htmlFor="description">Description</Label>
+      <Textarea
+        id="description"
+        value={formData.description}
+        onChange={(e) => handleInputChange('description', e.target.value)}
+        placeholder="Plan description..."
+        rows={3}
+      />
+    </div>
+
+    <div className="grid grid-cols-3 gap-4">
+      <div>
+        <Label htmlFor="price">Price</Label>
+        <Input
+          id="price"
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.price}
+          onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+        />
+      </div>
+      <div>
+        <Label htmlFor="currency">Currency</Label>
+        <Select value={formData.currency} onValueChange={(value) => handleInputChange('currency', value)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="USD">USD</SelectItem>
+            <SelectItem value="EUR">EUR</SelectItem>
+            <SelectItem value="GBP">GBP</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="billing">Billing</Label>
+        <Select value={formData.billing} onValueChange={(value: 'monthly' | 'yearly') => handleInputChange('billing', value)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="monthly">Monthly</SelectItem>
+            <SelectItem value="yearly">Yearly</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label htmlFor="max_surveys">Max Surveys</Label>
+        <Input
+          id="max_surveys"
+          type="number"
+          min="1"
+          value={formData.max_surveys}
+          onChange={(e) => handleInputChange('max_surveys', parseInt(e.target.value) || 1)}
+        />
+      </div>
+      <div>
+        <Label htmlFor="max_responses">Max Responses</Label>
+        <Input
+          id="max_responses"
+          type="number"
+          min="1"
+          value={formData.max_responses}
+          onChange={(e) => handleInputChange('max_responses', parseInt(e.target.value) || 1)}
+        />
+      </div>
+    </div>
+
+    <div>
+      <Label htmlFor="features">Features (one per line)</Label>
+      <Textarea
+        id="features"
+        value={formData.features}
+        onChange={(e) => handleInputChange('features', e.target.value)}
+        placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
+        rows={4}
+      />
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="priority_support"
+          checked={formData.priority_support}
+          onCheckedChange={(checked) => handleInputChange('priority_support', checked)}
+        />
+        <Label htmlFor="priority_support">Priority Support</Label>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="api_access"
+          checked={formData.api_access}
+          onCheckedChange={(checked) => handleInputChange('api_access', checked)}
+        />
+        <Label htmlFor="api_access">API Access</Label>
+      </div>
+    </div>
+
+    <div className="flex items-center space-x-2">
+      <Switch
+        id="is_active"
+        checked={formData.is_active}
+        onCheckedChange={(checked) => handleInputChange('is_active', checked)}
+      />
+      <Label htmlFor="is_active">Active</Label>
+    </div>
+
+    <div className="flex justify-end space-x-2">
+      <Button variant="outline" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button onClick={onSubmit}>
+        {submitText}
+      </Button>
+    </div>
+  </div>
+);
+
+const AdminPlansManagement: React.FC = () => {
     return (
       <Card>
         <CardHeader>
@@ -381,7 +439,16 @@ const AdminPlansManagement: React.FC = () => {
                 Add a new subscription plan to your platform
               </DialogDescription>
             </DialogHeader>
-            <PlanForm onSubmit={handleCreatePlan} submitText="Create Plan" />
+            <PlanForm 
+              formData={formData}
+              handleInputChange={handleInputChange}
+              onSubmit={handleCreatePlan} 
+              submitText="Create Plan"
+              onCancel={() => {
+                setShowCreateDialog(false);
+                resetForm();
+              }}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -411,26 +478,48 @@ const AdminPlansManagement: React.FC = () => {
                 </span>
               </div>
 
-              {plan.max_users && (
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-500" />
-                  <span>Max {plan.max_users} users</span>
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {plan.max_surveys && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                    <span>Max {plan.max_surveys} surveys</span>
+                  </div>
+                )}
+                {plan.max_responses && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-1 bg-green-400 rounded-full"></span>
+                    <span>Max {plan.max_responses} responses</span>
+                  </div>
+                )}
+                {plan.priority_support && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
+                    <span>Priority Support</span>
+                  </div>
+                )}
+                {plan.api_access && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-1 bg-purple-400 rounded-full"></span>
+                    <span>API Access</span>
+                  </div>
+                )}
+              </div>
 
-              {plan.features && plan.features.length > 0 && (
-                <div>
-                  <h4 className="font-medium mb-2">Features:</h4>
+              <div>
+                <h4 className="font-medium mb-2">Features:</h4>
+                {plan.features && plan.features.length > 0 ? (
                   <ul className="space-y-1">
                     {plan.features.map((feature, index) => (
                       <li key={index} className="text-sm text-gray-300 flex items-center gap-2">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                        <span className="w-1 h-1 bg-green-400 rounded-full"></span>
                         {feature}
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No features defined</p>
+                )}
+              </div>
 
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Calendar className="w-3 h-3" />
@@ -483,7 +572,17 @@ const AdminPlansManagement: React.FC = () => {
               Update the plan details
             </DialogDescription>
           </DialogHeader>
-          <PlanForm onSubmit={handleUpdatePlan} submitText="Update Plan" />
+          <PlanForm 
+            formData={formData}
+            handleInputChange={handleInputChange}
+            onSubmit={handleUpdatePlan} 
+            submitText="Update Plan"
+            onCancel={() => {
+              setShowEditDialog(false);
+              setEditingPlan(null);
+              resetForm();
+            }}
+          />
         </DialogContent>
       </Dialog>
 

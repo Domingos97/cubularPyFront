@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 export const WelcomePopup = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,30 +13,42 @@ export const WelcomePopup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { user, loading, updateUser } = useAuth();
 
+  // Debug: Add a way to reset the popup for testing (remove in production)
   useEffect(() => {
-    // Only show popup when user is authenticated and popup hasn't been shown before
-    if (!loading && user && !hasShownForCurrentSession) {
-
-      // Check if user has already dismissed the popup (from database via user object)
-      const hasBeenDismissed = user?.welcome_popup_dismissed;
-      
-      if (!hasBeenDismissed) {
-        // Small delay to ensure the page has loaded properly
-        const timer = setTimeout(() => {
-          setIsOpen(true);
-          setHasShownForCurrentSession(true);
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      } else {
-      }
+    // Check if we're in development and there's a reset flag
+    const shouldReset = new URLSearchParams(window.location.search).get('resetWelcome');
+    if (shouldReset === 'true') {
+      updateUser({ welcome_popup_dismissed: false });
+      console.log('Welcome popup state reset for testing');
     }
-  }, [user, loading, hasShownForCurrentSession]);
+  }, [updateUser]);
 
   const updateWelcomePopupPreference = async (dismissed: boolean) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8000/api/users/welcome-popup-dismissed', {
+      
+      if (!token) {
+        console.warn('No auth token found, cannot update preference');
+        return;
+      }
+      
+      // First test if auth is working by calling a known working endpoint
+      console.log('Testing authentication with /api/users/me/language...');
+      const testResponse = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.LANGUAGE), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!testResponse.ok) {
+        console.error('Auth test failed:', testResponse.status, testResponse.statusText);
+        return;
+      }
+      
+      console.log('Auth test successful, attempting welcome popup update...');
+      
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.WELCOME_POPUP_DISMISSED), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -44,18 +57,74 @@ export const WelcomePopup = () => {
         body: JSON.stringify({ dismissed })
       });
 
+      if (response.status === 401 || response.status === 403) {
+        console.warn('Authentication failed for welcome popup endpoint:', response.status);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to update welcome popup preference');
+        const errorText = await response.text();
+        console.error('API Error:', response.status, response.statusText, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      // Update user object locally to prevent popup from showing again
+      console.log('Successfully updated welcome popup preference via API');
+      
+      // Update local user object immediately to reflect the change
+      // This ensures the popup won't show again in this session
       updateUser({ welcome_popup_dismissed: dismissed });
+      
+      // Note: We don't force a token refresh here because:
+      // 1. The change is already saved to the database
+      // 2. The local user state is updated to prevent popup from showing again
+      // 3. The next time a token is naturally refreshed (during normal API calls), 
+      //    it will contain the updated welcome_popup_dismissed value
+      // 4. Forcing an immediate refresh can cause auth issues if the refresh fails
+      console.log('Welcome popup preference updated successfully. Token will be updated on next natural refresh.');
     } catch (error) {
       console.error('Error updating welcome popup preference:', error);
-      // Fallback to localStorage if API fails
-      localStorage.setItem('welcome-popup-dismissed', dismissed.toString());
+      // No localStorage fallback - if API fails, preference won't be saved
     }
   };
+
+  useEffect(() => {
+    // Only show popup when user is authenticated
+    if (!loading && user) {
+      // Check if user has already dismissed the popup from database (via JWT token)
+      const hasBeenDismissed = user?.welcome_popup_dismissed;
+      
+      console.log('Welcome Popup Debug:', {
+        loading,
+        user: !!user,
+        userEmail: user?.email,
+        hasShownForCurrentSession,
+        hasBeenDismissed,
+        userWelcomePopupDismissed: user?.welcome_popup_dismissed,
+        decision: hasBeenDismissed ? 'Dismissed in database' : 'Not dismissed - will show'
+      });
+      
+      if (!hasBeenDismissed && !hasShownForCurrentSession) {
+        console.log('Showing welcome popup...');
+        // Small delay to ensure the page has loaded properly
+        const timer = setTimeout(() => {
+          setIsOpen(true);
+          setHasShownForCurrentSession(true);
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      } else {
+        console.log('Welcome popup not shown because:', {
+          hasBeenDismissed,
+          hasShownForCurrentSession,
+          reason: hasBeenDismissed ? 'dismissed in database' : 'already shown this session'
+        });
+      }
+    } else {
+      console.log('Welcome popup conditions not met:', { loading, user: !!user });
+    }
+  }, [user, loading, hasShownForCurrentSession]);
 
   const handleClose = async () => {
     if (dontShowAgain) {
@@ -68,8 +137,8 @@ export const WelcomePopup = () => {
 
   const handleDismiss = () => {
     setIsOpen(false);
-    // Don't save to localStorage if user just clicks away/dismisses
-    // This ensures the popup will show again next time
+    // Just close the popup without saving preference
+    // This means the popup might show again in future sessions
   };
 
   return (

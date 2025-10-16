@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { useTranslation } from '@/resources/i18n';
+import { usePersonalities } from '@/hooks/usePersonalities';
 import { 
   Eye, 
   EyeOff,
   Mail,
   UserIcon as User,
-  Settings
+  Settings,
+  Save
 } from 'lucide-react';
 import {
   Select,
@@ -28,22 +30,23 @@ interface UserData {
   email: string;
   username: string;
   password?: string;
-  language?: string;
-  roleId: string;
+  language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
+  role?: string;  // Add role field
   created_at?: string;
   updated_at?: string;
   last_login?: string;
-  is_active?: boolean;
 }
 
 interface UserProfileProps {
   user: UserData;
   newPassword: string;
   showPassword: boolean;
+  isSaving: boolean;
   onUserChange: (updates: Partial<UserData>) => void;
   onPasswordChange: (password: string) => void;
   onPasswordVisibilityToggle: () => void;
+  onSave: () => void;
 }
 
 const formatDate = (dateString?: string) => {
@@ -61,11 +64,15 @@ const UserProfile: React.FC<UserProfileProps> = ({
   user,
   newPassword,
   showPassword,
+  isSaving,
   onUserChange,
   onPasswordChange,
-  onPasswordVisibilityToggle
+  onPasswordVisibilityToggle,
+  onSave
 }) => {
   const { t } = useTranslation();
+  const { personalities, isLoading: personalitiesLoading } = usePersonalities('all');
+  
   const handleInputChange = (field: keyof UserData, value: any) => {
     onUserChange({ [field]: value });
   };
@@ -109,15 +116,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 {formatDate(user.last_login) || t('admin.userEdit.never')}
               </p>
             </div>
-            <div>
-              <Label className="text-xs text-gray-400 uppercase tracking-wide">{t('admin.userEdit.status')}</Label>
-              <Badge 
-                variant="outline" 
-                className={user.is_active !== false ? 'text-green-400 border-green-600' : 'text-red-400 border-red-600'}
-              >
-                {user.is_active !== false ? t('admin.userEdit.active') : t('admin.userEdit.inactive')}
-              </Badge>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -152,8 +150,8 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 <Input
                   type="email"
                   value={user.email || ''}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="bg-gray-700 border-gray-600 text-gray-100 pl-10"
+                  readOnly
+                  className="bg-gray-700 border-gray-600 text-gray-100 pl-10 cursor-not-allowed opacity-75"
                   placeholder={t('admin.userEdit.enterEmail')}
                 />
               </div>
@@ -193,36 +191,35 @@ const UserProfile: React.FC<UserProfileProps> = ({
             <div className="space-y-2">
               <Label className="text-gray-300">{t('admin.userEdit.language')}</Label>
               <Select 
-                value={user.language || 'en'} 
-                onValueChange={(value) => handleInputChange('language', value)}
+                value={user.language_preference || 'en-US'} 
+                onValueChange={(value) => handleInputChange('language_preference', value)}
               >
                 <SelectTrigger className="bg-gray-700 border-gray-600 text-gray-100">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-600">
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="pt">Portuguese</SelectItem>
+                  <SelectItem value="en-US">English</SelectItem>
+                  <SelectItem value="es-ES">Español</SelectItem>
+                  <SelectItem value="pt-PT">Português</SelectItem>
+                  <SelectItem value="sv-SE">Svenska</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Role */}
             <div className="space-y-2">
-              <Label className="text-gray-300">{t('admin.userEdit.role')}</Label>
+              <Label className="text-gray-300">Role</Label>
               <Select 
-                value={user.roleId || 'user'} 
-                onValueChange={(value) => handleInputChange('roleId', value)}
+                value={user.role || 'user'} 
+                onValueChange={(value) => handleInputChange('role', value)}
               >
                 <SelectTrigger className="bg-gray-700 border-gray-600 text-gray-100">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-600">
-                  <SelectItem value="admin">{t('admin.userEdit.administrator')}</SelectItem>
-                  <SelectItem value="user">{t('admin.userEdit.user')}</SelectItem>
-                  <SelectItem value="moderator">{t('admin.userEdit.moderator')}</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="super_admin">Super Administrator</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -231,35 +228,68 @@ const UserProfile: React.FC<UserProfileProps> = ({
           {/* Preferred Personality */}
           <div className="space-y-2">
             <Label className="text-gray-300">{t('admin.userEdit.preferredAI')}</Label>
-            <Textarea
-              value={user.preferred_personality || ''}
-              onChange={(e) => handleInputChange('preferred_personality', e.target.value)}
-              className="bg-gray-700 border-gray-600 text-gray-100 min-h-[80px]"
-              placeholder={t('admin.userEdit.describePreferred')}
-            />
+            <Select 
+              value={user.preferred_personality || 'none'} 
+              onValueChange={(value) => handleInputChange('preferred_personality', value === 'none' ? null : value)}
+              disabled={personalitiesLoading || isSaving}
+            >
+              <SelectTrigger className="bg-gray-700 border-gray-600 text-gray-100">
+                <SelectValue placeholder={
+                  personalitiesLoading 
+                    ? 'Loading personalities...' 
+                    : isSaving 
+                      ? 'Saving...'
+                      : 'Select preferred AI personality'
+                } />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                <SelectItem value="none" className="text-gray-300">
+                  <div className="flex flex-col">
+                    <span className="font-medium">No preference</span>
+                    <span className="text-sm text-gray-400">Use system default</span>
+                  </div>
+                </SelectItem>
+                {personalities.map((personality) => (
+                  <SelectItem key={personality.id} value={personality.id} className="text-white">
+                    <div className="flex flex-col">
+                      <span className="font-medium">{personality.name}</span>
+                      <span className="text-sm text-gray-400 truncate max-w-60">
+                        {personality.description}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {personalitiesLoading && (
+              <p className="text-sm text-gray-400">Loading available personalities...</p>
+            )}
+            {user.preferred_personality && personalities.length > 0 && (
+              <p className="text-sm text-blue-400">
+                Current: {personalities.find(p => p.id === user.preferred_personality)?.name || 'Unknown personality'}
+              </p>
+            )}
           </div>
 
-          {/* Account Status */}
-          <div className="space-y-2">
-            <Label className="text-gray-300">{t('admin.userEdit.accountStatus')}</Label>
-            <div className="flex items-center gap-4">
-              <Button
-                variant={user.is_active !== false ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleInputChange('is_active', true)}
-                className="text-xs"
-              >
-                {t('admin.userEdit.active')}
-              </Button>
-              <Button
-                variant={user.is_active === false ? "destructive" : "outline"}
-                size="sm"
-                onClick={() => handleInputChange('is_active', false)}
-                className="text-xs"
-              >
-                {t('admin.userEdit.inactive')}
-              </Button>
-            </div>
+          {/* Save Button */}
+          <div className="pt-4">
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isSaving ? (
+                <>
+                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+                  Saving Changes...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Profile Changes
+                </>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>

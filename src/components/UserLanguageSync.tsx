@@ -17,7 +17,7 @@ export const UserLanguageSync = () => {
       const userLang = user.language_preference as SupportedLanguage;
       
       // Only update if it's different from current language to avoid unnecessary re-renders
-      if (currentLanguage !== userLang && ['en', 'es', 'pt', 'sv'].includes(userLang)) {
+      if (currentLanguage !== userLang) {
         console.log('🔄 Syncing user language preference:', { 
           from: currentLanguage, 
           to: userLang,

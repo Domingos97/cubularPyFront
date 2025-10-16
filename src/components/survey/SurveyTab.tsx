@@ -9,6 +9,7 @@ import GlassCard from "@/components/ui/GlassCard";
 import ChannelsPerformanceChart from './ChannelsPerformanceChart';
 import { authenticatedFetch, authenticatedApiRequest } from '@/utils/api';
 import { useTranslation } from '@/resources/i18n';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface AIPersonality {
   id: string;
@@ -402,7 +403,7 @@ export const SurveyTab: FC = () => {
       formData.append('file', file);
       formData.append('category', categoryInput);
       formData.append('description', descriptionInput);
-      const res = await authenticatedFetch('http://localhost:8000/api/surveys/upload', {
+      const res = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.UPLOAD), {
         method: 'POST',
         body: formData
       });
@@ -440,7 +441,7 @@ export const SurveyTab: FC = () => {
 
   const fetchPersonalities = async () => {
     try {
-      const data: AIPersonality[] = await authenticatedApiRequest('http://localhost:8000/api/personalities');
+      const data: AIPersonality[] = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES));
       const activePersonalities = data.filter(p => p.is_active);
       setPersonalities(activePersonalities);
       
@@ -482,7 +483,7 @@ export const SurveyTab: FC = () => {
     setIsGenerating(true);
     setSuggestionError(null);
     try {
-      const res = await authenticatedFetch(`http://localhost:8000/api/surveys/${uploadedSurveyId}/suggestions`, {
+      const res = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SUGGESTIONS(uploadedSurveyId)), {
         method: 'POST',
         body: JSON.stringify({
           personalityId: selectedPersonalityId,

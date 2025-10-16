@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSurveys } from '@/contexts/SurveyContext';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Database, Settings, BarChart3, Brain, Cog, FileText, Crown } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, Database, Settings, Brain, Cog, FileText, Crown, MessageSquare } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { AdminSettings } from '@/components/admin/AdminSettings';
 import { AIPersonalityManager } from '@/components/admin/AIPersonalityManager';
 import { AdminUsersManagement } from '@/components/admin/AdminUsersManagement';
 import { AdminSurveysManagement } from '@/components/admin/AdminSurveysManagement';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import { ModelConfigurationPanel } from '@/components/admin/ModelConfigurationPanel';
+import { SurveyBuilderPanel } from '@/components/admin/NewSurveyBuilderPanel';
+
 import AdminLogsManagement from '@/components/admin/AdminLogsManagement';
 import AdminPlansManagement from '@/components/admin/AdminPlansManagement';
 import { authenticatedApiRequest } from '@/utils/api';
@@ -36,6 +37,8 @@ interface Survey {
   category?: string;
 }
 
+type AdminSection = 'dashboard' | 'users' | 'surveys' | 'survey-builder' | 'plans' | 'ai-personalities' | 'model-config' | 'settings' | 'logs';
+
 const Admin = () => {
   const { user, logout } = useAuth();
   const { refreshSurveys } = useSurveys();
@@ -46,6 +49,7 @@ const Admin = () => {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeSection, setActiveSection] = useState<AdminSection>('users');
 
   console.log('🔍 ADMIN COMPONENT DEBUG:', { 
     hasUser: !!user,
@@ -64,11 +68,11 @@ const Admin = () => {
       setError('');
 
       // Fetch users
-      const usersData = await authenticatedApiRequest<User[]>('http://localhost:8000/api/users');
+      const usersData = await authenticatedApiRequest<User[]>(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE));
       setUsers(usersData || []);
 
       // Fetch surveys - using admin access endpoint for all surveys and files
-      const surveysResponse = await authenticatedApiRequest<{surveys: Survey[]}>('http://localhost:8000/api/admin/access/surveys-files');
+      const surveysResponse = await authenticatedApiRequest<{surveys: Survey[]}>(buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.ACCESS_SURVEYS_FILES));
       setSurveys(surveysResponse?.surveys || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -81,7 +85,7 @@ const Admin = () => {
   // Helper to clear surveys cache and refresh data
   const clearCacheAndRefetch = async () => {
     const { clearCache } = await import('../utils/requestDeduplication');
-    clearCache('API-GET-http://localhost:8000/api/admin/access/surveys-files');
+    clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.ACCESS_SURVEYS_FILES)}`);
     // Also refresh the SurveyContext so the Index page shows updated surveys
     await refreshSurveys();
     await fetchData();
@@ -98,10 +102,118 @@ const Admin = () => {
     await clearCacheAndRefetch();
   };
 
+  // Enhanced user deletion handler with optimistic updates
+  const handleUserDeleted = async (userId?: string) => {
+    if (userId) {
+      // Optimistically remove the user from the local state immediately
+      setUsers(prev => prev.filter(user => user.id !== userId));
+    }
+    
+    // Clear cache and refresh data from server
+    const { clearCache } = await import('../utils/requestDeduplication');
+    clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE)}`);
+    await fetchData();
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/auth');
   };
+
+  const adminSections = [
+    {
+      id: 'users' as AdminSection,
+      title: t('admin.tabs.users'),
+      description: 'Manage user accounts',
+      icon: Users,
+      color: 'text-blue-400'
+    },
+    {
+      id: 'surveys' as AdminSection,
+      title: t('admin.tabs.surveys'),
+      description: 'Manage survey data',
+      icon: Database,
+      color: 'text-green-400'
+    },
+    {
+      id: 'survey-builder' as AdminSection,
+      title: 'Survey Builder',
+      description: 'Create new surveys',
+      icon: MessageSquare,
+      color: 'text-purple-400'
+    },
+    {
+      id: 'plans' as AdminSection,
+      title: t('admin.tabs.plans'),
+      description: 'Manage subscription plans',
+      icon: Crown,
+      color: 'text-yellow-400'
+    },
+    {
+      id: 'ai-personalities' as AdminSection,
+      title: t('admin.tabs.aiPersonalities'),
+      description: 'Configure AI personalities',
+      icon: Brain,
+      color: 'text-pink-400'
+    },
+    {
+      id: 'model-config' as AdminSection,
+      title: t('admin.tabs.modelConfig'),
+      description: 'Configure LLM models',
+      icon: Cog,
+      color: 'text-indigo-400'
+    },
+    {
+      id: 'settings' as AdminSection,
+      title: t('admin.tabs.settings'),
+      description: 'System settings',
+      icon: Settings,
+      color: 'text-gray-400'
+    },
+    {
+      id: 'logs' as AdminSection,
+      title: 'Logs',
+      description: 'View system logs',
+      icon: FileText,
+      color: 'text-orange-400'
+    }
+  ];
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'users':
+        return (
+          <AdminUsersManagement 
+            users={users} 
+            onUserAdded={fetchData} 
+            onUserDeleted={handleUserDeleted} 
+          />
+        );
+      case 'surveys':
+        return (
+          <AdminSurveysManagement 
+            surveys={surveys} 
+            onSurveyAdded={clearCacheAndRefetch} 
+            onSurveyDeleted={handleSurveyDeleted} 
+          />
+        );
+      case 'survey-builder':
+        return <SurveyBuilderPanel />;
+      case 'plans':
+        return <AdminPlansManagement />;
+      case 'ai-personalities':
+        return <AIPersonalityManager />;
+      case 'model-config':
+        return <ModelConfigurationPanel />;
+      case 'settings':
+        return <AdminSettings />;
+      case 'logs':
+        return <AdminLogsManagement />;
+      default:
+        return null;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -111,10 +223,10 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+      <div className="w-full">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-white">{t('admin.dashboard')}</h1>
             <p className="text-gray-400 mt-1">{t('admin.welcome', { email: user?.email })}</p>
@@ -148,91 +260,85 @@ const Admin = () => {
           </Alert>
         )}
 
-        {/* Admin Tabs */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8 bg-gray-800/80 border-gray-700">
-            <TabsTrigger value="dashboard" className="data-[state=active]:bg-gray-700">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              {t('admin.tabs.dashboard')}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-gray-700">
-              <Users className="w-4 h-4 mr-2" />
-              {t('admin.tabs.users')}
-            </TabsTrigger>
-            <TabsTrigger value="surveys" className="data-[state=active]:bg-gray-700">
-              <Database className="w-4 h-4 mr-2" />
-              {t('admin.tabs.surveys')}
-            </TabsTrigger>
-            <TabsTrigger value="plans" className="data-[state=active]:bg-gray-700">
-              <Crown className="w-4 h-4 mr-2" />
-              {t('admin.tabs.plans')}
-            </TabsTrigger>
-            <TabsTrigger value="ai-personalities" className="data-[state=active]:bg-gray-700">
-              <Brain className="w-4 h-4 mr-2" />
-              {t('admin.tabs.aiPersonalities')}
-            </TabsTrigger>
-            <TabsTrigger value="model-config" className="data-[state=active]:bg-gray-700">
-              <Cog className="w-4 h-4 mr-2" />
-              {t('admin.tabs.modelConfig')}
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="data-[state=active]:bg-gray-700">
-              <Settings className="w-4 h-4 mr-2" />
-              {t('admin.tabs.settings')}
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="data-[state=active]:bg-gray-700">
-              <FileText className="w-4 h-4 mr-2" />
-              Logs
-            </TabsTrigger>
-          </TabsList>
+        {/* Two Panel Layout */}
+        <div className="flex gap-6 h-[calc(100vh-10rem)]">
+          {/* Left Panel - Admin Options */}
+          <div className="w-80 flex-shrink-0">
+            <Card className="bg-gray-800/80 border-gray-700 h-full">
+              <CardHeader>
+                <CardTitle className="text-white text-lg">Admin Functions</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Select an option to manage
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {adminSections.map((section) => {
+                  const IconComponent = section.icon;
+                  const isActive = activeSection === section.id;
+                  return (
+                    <div
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className={`
+                        flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-all duration-200
+                        ${isActive 
+                          ? 'bg-blue-600/20 border border-blue-500/30 text-white' 
+                          : 'hover:bg-gray-700/50 text-gray-300 hover:text-white'
+                        }
+                      `}
+                    >
+                      <IconComponent className={`w-5 h-5 ${isActive ? section.color : 'text-gray-400'}`} />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{section.title}</div>
+                        <div className="text-xs text-gray-400">{section.description}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard">
-            <AdminDashboard users={users} surveys={surveys} />
-          </TabsContent>
-
-          {/* Users Management Tab */}
-          <TabsContent value="users">
-            <AdminUsersManagement 
-              users={users} 
-              onUserAdded={fetchData} 
-              onUserDeleted={fetchData} 
-            />
-          </TabsContent>
-
-          {/* Surveys Management Tab */}
-          <TabsContent value="surveys">
-            <AdminSurveysManagement 
-              surveys={surveys} 
-              onSurveyAdded={clearCacheAndRefetch} 
-              onSurveyDeleted={handleSurveyDeleted} 
-            />
-          </TabsContent>
-
-          {/* Plans Management Tab */}
-          <TabsContent value="plans">
-            <AdminPlansManagement />
-          </TabsContent>
-
-          {/* AI Personalities Management Tab */}
-          <TabsContent value="ai-personalities">
-            <AIPersonalityManager />
-          </TabsContent>
-
-          {/* Model Configuration Tab */}
-          <TabsContent value="model-config">
-            <ModelConfigurationPanel />
-          </TabsContent>
-
-          {/* Settings Tab */}
-          <TabsContent value="settings">
-            <AdminSettings />
-          </TabsContent>
-
-          {/* Logs Tab */}
-          <TabsContent value="logs">
-            <AdminLogsManagement />
-          </TabsContent>
-        </Tabs>
+          {/* Right Panel - Content Area */}
+          <div className="flex-1">
+            <Card className="bg-gray-800/80 border-gray-700 h-full">
+              <CardHeader>
+                <CardTitle className="text-white text-lg flex items-center space-x-2">
+                  {(() => {
+                    const activeConfig = adminSections.find(s => s.id === activeSection);
+                    const IconComponent = activeConfig?.icon || Settings;
+                    return (
+                      <>
+                        <IconComponent className={`w-5 h-5 ${activeConfig?.color || 'text-gray-400'}`} />
+                        <span>{activeConfig?.title || 'Select an Option'}</span>
+                      </>
+                    );
+                  })()}
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  {adminSections.find(s => s.id === activeSection)?.description || 'Choose an admin function from the left panel'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-[calc(100%-5rem)] overflow-auto">
+                {activeSection === 'dashboard' ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Settings className="w-8 h-8 text-blue-400" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-white mb-2">Welcome to Admin Dashboard</h3>
+                      <p className="text-gray-400 max-w-md">
+                        Select an option from the left panel to manage different aspects of your application.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  renderActiveSection()
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

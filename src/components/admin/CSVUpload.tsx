@@ -25,6 +25,7 @@ import { useTranslation } from '@/resources/i18n';
 import * as XLSX from 'xlsx';
 import { parseCSVFile, downloadCSV, validateCSVHeaders } from '@/utils/csvUtils';
 import type { AIPersonality } from '@/hooks/usePersonalities';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -50,7 +51,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
     const fetchPersonalities = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch('http://localhost:8000/api/personalities', {
+        const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES), {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -188,7 +189,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`http://localhost:8000/api/surveys/generate-suggestions`, {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.GENERATE_SUGGESTIONS), {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -253,7 +254,7 @@ export const CSVUpload = ({ onUploadComplete }: FileUploadProps) => {
         uploadHeaders['Authorization'] = `Bearer ${token}`;
       }
       
-      const uploadResponse = await fetch('http://localhost:8000/api/surveys/upload', {
+      const uploadResponse = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.UPLOAD), {
         method: 'POST',
         headers: uploadHeaders,
         body: formData

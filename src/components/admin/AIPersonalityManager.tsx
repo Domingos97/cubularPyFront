@@ -15,6 +15,7 @@ import { Plus, Edit, Trash2, Eye, EyeOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedApiRequest } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import type { AIPersonality } from '@/hooks/usePersonalities';
 
 
@@ -32,7 +33,7 @@ export const AIPersonalityManager = () => {
 
   const loadPersonalities = async () => {
     try {
-      const data = await authenticatedApiRequest<AIPersonality[]>('http://localhost:8000/api/personalities');
+      const data = await authenticatedApiRequest<AIPersonality[]>(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES));
       setPersonalities(data);
     } catch (error) {
       console.error('Error loading personalities:', error);
@@ -53,13 +54,11 @@ export const AIPersonalityManager = () => {
 
   const handleDelete = async () => {
     if (!personalityToDelete) return;
-
+    
     try {
-      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${personalityToDelete}`, {
+      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${personalityToDelete}`, {
         method: 'DELETE'
-      });
-
-      toast.success(t('admin.personalities.deleteSuccess'));
+      });      toast.success(t('admin.personalities.deleteSuccess'));
       loadPersonalities();
       setDeleteConfirmOpen(false);
       setPersonalityToDelete(null);
@@ -71,7 +70,7 @@ export const AIPersonalityManager = () => {
 
   const toggleActive = async (id: string, isActive: boolean) => {
     try {
-      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${id}`, {
+      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ is_active: !isActive })
       });
@@ -95,7 +94,7 @@ export const AIPersonalityManager = () => {
 
   const setAsDefault = async (id: string) => {
     try {
-      await authenticatedApiRequest(`http://localhost:8000/api/personalities/${id}/set-default`, {
+      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${id}/set-default`, {
         method: 'POST'
       });
       toast.success(t('admin.personalities.defaultUpdated'));

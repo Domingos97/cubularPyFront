@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'react-router-dom';
 import { Survey } from '@/types/survey';
 import { authenticatedFetch } from '@/utils/api';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface ChatSession {
   id: string;
@@ -49,7 +50,7 @@ export function useChatSessions() {
     setIsLoading(true);
     console.log('🔍 loadChatSessions: Starting with user:', user.id, 'surveyId:', surveyId);
     try {
-      let url = `http://localhost:8000/api/chat/sessions`;
+      let url = buildApiUrl(API_CONFIG.ENDPOINTS.CHAT.SESSIONS);
       if (surveyId) {
         url += `?surveyId=${surveyId}`;
       }
@@ -89,7 +90,13 @@ export function useChatSessions() {
   }, [user?.id]);
 
   const createNewSession = useCallback(async (surveys: Survey[], category: string, selectedPersonalityId?: string | null, selectedFileIds?: string[]) => {
-    if (!user?.id || surveys.length === 0) return null;
+    if (!user?.id) return null;
+    
+    // Allow empty surveys for survey_builder category
+    if (surveys.length === 0 && category !== 'survey_builder') {
+      console.log('🎯 No surveys provided for non-survey-builder session');
+      return null;
+    }
     
     try {
       const surveyIds = surveys.map(s => s.id);
@@ -103,7 +110,7 @@ export function useChatSessions() {
       
       console.log('🎯 Creating new session with selected files:', selectedFileIds);
       
-      const response = await authenticatedFetch('http://localhost:8000/api/chat/sessions', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.CHAT.SESSIONS), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -148,7 +155,7 @@ export function useChatSessions() {
       console.log('🔍 useChatSessions: Loading session:', sessionId);
       
       // Use the quick endpoint that returns both session and messages
-      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/quick`);
+      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}/quick`));
       
       if (!response.ok) {
         // If session is not found (404), clear URL parameters to prevent infinite loops
@@ -213,7 +220,7 @@ export function useChatSessions() {
         window.history.replaceState({}, '', newUrl.toString());
       });
     }
-  }, [location.search, currentSession?.id, isLoadingSession, loadSession]);
+  }, [location.search, currentSession?.id, isLoadingSession]); // Removed loadSession from dependencies to prevent infinite loop
 
   const saveMessage = async (
     content: string, 
@@ -227,7 +234,7 @@ export function useChatSessions() {
     if (!sessionId) return;
     
     try {
-      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`, {
+      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}/messages`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -274,7 +281,7 @@ export function useChatSessions() {
     try {
       console.log('🗑️ Deleting session:', sessionId, 'Current session:', currentSession?.id);
       
-      const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, { 
+      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}`), { 
         method: 'DELETE' 
       });
       
@@ -304,7 +311,7 @@ export function useChatSessions() {
 
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
     try {
-      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
+      await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle })
@@ -318,7 +325,7 @@ export function useChatSessions() {
   const updateSessionSurveys = async (sessionId: string, surveys: Survey[], category: string) => {
     try {
       // Clear existing messages
-      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}/messages`, { method: 'DELETE' });
+      await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}/messages`), { method: 'DELETE' });
       
   const surveyIds = surveys.map(s => s.id);
       const newTitle = surveys.length === 1 
@@ -326,7 +333,7 @@ export function useChatSessions() {
         : `Chat about ${surveys.length} surveys`;
       
       // Update session with new surveys
-      await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
+      await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -380,7 +387,7 @@ export function useChatSessions() {
     try {
       await Promise.all(
         sessionsToDelete.map(sessionId =>
-          authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, { method: 'DELETE' })
+          authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.CHAT.SESSIONS}/${sessionId}`), { method: 'DELETE' })
         )
       );
       

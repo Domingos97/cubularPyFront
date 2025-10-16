@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Upload, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { authenticatedFetch } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface AddFileUploadProps {
   surveyId: string;
@@ -75,7 +75,7 @@ export const AddFileUpload: React.FC<AddFileUploadProps> = ({
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const response = await fetch(`http://localhost:8000/api/surveys/${surveyId}/files`, {
+      const response = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${surveyId}/files`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`

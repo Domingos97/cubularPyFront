@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Download, Eye, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Plus, Download, Eye, MoreHorizontal, Trash2, Clock, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { MultiFileUpload } from '@/components/admin/MultiFileUpload';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface Survey {
   id: string;
@@ -15,6 +17,7 @@ interface Survey {
   filename?: string;
   created_at: string;
   category?: string;
+  processing_status?: string;
 }
 
 interface AdminSurveysManagementProps {
@@ -27,12 +30,39 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
   const { toast } = useToast();
   const { t } = useTranslation();
   const [isMultiFileUploadOpen, setIsMultiFileUploadOpen] = useState(false);
+  const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
+
+  const renderStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return (
+          <Badge variant="default" className="bg-green-600 text-white">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case 'pending':
+        return (
+          <Badge variant="secondary" className="bg-yellow-600 text-white">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="border-gray-500 text-gray-400">
+            Unknown
+          </Badge>
+        );
+    }
+  };
+
 
   const handleDeleteSurvey = async (surveyId: string) => {
     if (!confirm(t('admin.surveys.confirmDelete'))) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const res = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${surveyId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -62,7 +92,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
 
   const handleDownloadSurvey = async (surveyId: string, filename: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/surveys/${surveyId}/download`, {
+      const res = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${surveyId}/download`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -140,6 +170,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
               <TableHead className="text-gray-300">{t('admin.surveys.table.title')}</TableHead>
               <TableHead className="text-gray-300">{t('admin.surveys.table.filename')}</TableHead>
               <TableHead className="text-gray-300">{t('admin.surveys.table.category')}</TableHead>
+              <TableHead className="text-gray-300">Status</TableHead>
               <TableHead className="text-gray-300">{t('admin.surveys.table.created')}</TableHead>
               <TableHead className="text-gray-300">{t('admin.surveys.table.actions')}</TableHead>
             </TableRow>
@@ -155,6 +186,9 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
                 </TableCell>
                 <TableCell className="text-gray-300">
                   {survey.category || t('admin.surveys.general')}
+                </TableCell>
+                <TableCell>
+                  {renderStatusBadge(survey.processing_status)}
                 </TableCell>
                 <TableCell className="text-gray-300">
                   {new Date(survey.created_at).toLocaleDateString()}

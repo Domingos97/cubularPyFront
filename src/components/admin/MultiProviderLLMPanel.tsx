@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { authenticatedApiRequest } from '@/utils/api';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface LLMSettings {
   id?: string;
@@ -236,13 +237,13 @@ export const MultiProviderLLMPanel = () => {
         console.log('👑 User is admin, loading all settings...');
         try {
           // Admin users can see all settings
-          allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings');
+          allSettings = await authenticatedApiRequest<LLMSettings[]>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.BASE));
           console.log('✅ Admin settings loaded:', allSettings);
         } catch (error: any) {
           console.log('⚠️ Admin access failed, falling back to active settings:', error);
           if (error.message?.includes('Admin privileges required') || error.message?.includes('Access denied')) {
             console.warn('Admin access failed, falling back to active settings');
-            allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings/active/list');
+            allSettings = await authenticatedApiRequest<LLMSettings[]>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.ACTIVE_LIST));
             console.log('✅ Fallback active settings loaded:', allSettings);
           } else {
             throw error;
@@ -251,7 +252,7 @@ export const MultiProviderLLMPanel = () => {
       } else {
         console.log('👤 Regular user, loading active settings only...');
         // Regular users can only see active settings
-        allSettings = await authenticatedApiRequest<LLMSettings[]>('http://localhost:8000/api/llm-settings/active/list');
+        allSettings = await authenticatedApiRequest<LLMSettings[]>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.ACTIVE_LIST));
         console.log('✅ Active settings loaded:', allSettings);
       }
       
@@ -327,7 +328,7 @@ export const MultiProviderLLMPanel = () => {
       updateConfig(provider, { isLoadingApiKey: true });
       
       try {
-        const result = await authenticatedApiRequest<{api_key: string}>(`http://localhost:8000/api/llm-settings/provider/${provider}/decrypted-api-key`);
+        const result = await authenticatedApiRequest<{api_key: string}>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.PROVIDER_KEY(provider)));
         updateConfig(provider, { 
           decryptedApiKey: result.api_key || '',
           showApiKey: true,
@@ -383,7 +384,7 @@ export const MultiProviderLLMPanel = () => {
       // If config.isConfigured and no tempApiKey, don't include api_key (preserve existing)
 
       // Use upsert to handle both create and update scenarios  
-      const savedSettings = await authenticatedApiRequest<LLMSettings>('http://localhost:8000/api/llm-settings/upsert', {
+      const savedSettings = await authenticatedApiRequest<LLMSettings>(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.UPSERT), {
         method: 'POST',
         body: JSON.stringify(settingsToSave)
       });
@@ -458,7 +459,7 @@ export const MultiProviderLLMPanel = () => {
     try {
       const config = configs[provider];
       if (config.id) {
-        await authenticatedApiRequest(`http://localhost:8000/api/llm-settings/${config.id}`, {
+        await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.DELETE(config.id)), {
           method: 'DELETE'
         });
       }

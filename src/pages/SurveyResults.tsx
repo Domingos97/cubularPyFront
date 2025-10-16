@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { usePersonalities } from "@/hooks/usePersonalities";
 import AppHeader from "@/components/AppHeader";
 import AdminSidebar from "@/components/AdminSidebar";
 import UserSidebar from "@/components/UserSidebar";
 import { Survey } from "@/types/survey";
 import { useTranslation } from "@/resources/i18n";
 import { authenticatedFetch } from "@/utils/api";
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 // New modular components
 import { ChatComponent } from "@/components/survey-results/ChatComponent";
@@ -31,6 +32,9 @@ const SurveyResults = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  
+  // Get user's preferred personality
+  const { selectedPersonality: userPreferredPersonality } = usePersonalities('ai_chat_integration');
 
   // Handler for sidebar personality selection
   const handleSidebarPersonalityChange = (personalityId: string) => {
@@ -54,7 +58,7 @@ const SurveyResults = () => {
       const loadSessionForSurvey = async () => {
         try {
           setIsLoading(true);
-          const response = await authenticatedFetch(`http://localhost:8000/api/chat/sessions/${sessionId}`);
+          const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.CHAT.SESSION_DETAILS(sessionId)));
           if (response.ok) {
             const sessionData = await response.json();
             console.log('SurveyResults: loaded session data for survey restoration:', sessionData);
@@ -64,7 +68,7 @@ const SurveyResults = () => {
               const surveyId = sessionData.survey_ids[0];
               console.log('SurveyResults: restoring survey from session:', surveyId);
               
-              const surveyResponse = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`);
+              const surveyResponse = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)));
               if (surveyResponse.ok) {
                 const surveyData = await surveyResponse.json();
                 console.log('SurveyResults: restored survey data:', surveyData);
@@ -129,6 +133,14 @@ const SurveyResults = () => {
       }
     }
   }, [location.state]);
+
+  // Initialize selectedPersonalityId with user's preferred personality
+  useEffect(() => {
+    if (!selectedPersonalityId && userPreferredPersonality) {
+      console.log('SurveyResults: Setting user preferred personality:', userPreferredPersonality.id);
+      setSelectedPersonalityId(userPreferredPersonality.id);
+    }
+  }, [userPreferredPersonality, selectedPersonalityId]);
 
   // Survey change handler
   const handleSurveyChange = async (survey: Survey) => {

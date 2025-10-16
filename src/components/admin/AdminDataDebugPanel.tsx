@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { authenticatedApiRequest } from '@/utils/api';
+import {  buildApiUrl } from '@/config';
 import { useAuth } from '@/hooks/useAuth';
 
 export const AdminDataDebugPanel = () => {
@@ -17,7 +18,7 @@ export const AdminDataDebugPanel = () => {
     
     try {
       console.log(`🔄 Testing ${description}...`);
-      const data = await authenticatedApiRequest(`http://localhost:8000/api${endpoint}`);
+      const data = await authenticatedApiRequest(`${buildApiUrl('')}${endpoint}`);
       console.log(`✅ ${description} success:`, data);
       
       setDebugData(prev => ({

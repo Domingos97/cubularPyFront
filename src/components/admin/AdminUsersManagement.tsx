@@ -7,10 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Plus, Eye, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedApiRequest } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface User {
   id: string;
@@ -22,7 +24,7 @@ interface User {
 interface AdminUsersManagementProps {
   users: User[];
   onUserAdded: () => void;
-  onUserDeleted: () => void;
+  onUserDeleted: (userId?: string) => void;
 }
 
 export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: AdminUsersManagementProps) => {
@@ -30,6 +32,7 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
   const { toast } = useToast();
   const { t } = useTranslation();
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({
     username: '',
     email: '',
@@ -48,7 +51,7 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
     }
 
     try {
-      const data = await authenticatedApiRequest('http://localhost:8000/api/users', {
+      const data = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE), {
         method: 'POST',
         body: JSON.stringify(newUser)
       });
@@ -75,14 +78,17 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm(t('admin.users.deleteConfirm'))) return;
+    if (deletingUserId) return; // Prevent multiple simultaneous deletions
 
     try {
-      await authenticatedApiRequest(`http://localhost:8000/api/users/${userId}`, {
+      setDeletingUserId(userId);
+      
+      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE)}/${userId}`, {
         method: 'DELETE'
       });
 
-      onUserDeleted();
+      // Pass the userId to the parent for optimistic updates
+      onUserDeleted(userId);
       toast({
         title: t('admin.toast.success'),
         description: t('admin.users.userDeleted')
@@ -94,6 +100,8 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
         description: error instanceof Error ? error.message : t('admin.users.deleteFailed'),
         variant: 'destructive'
       });
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -190,14 +198,40 @@ export const AdminUsersManagement = ({ users, onUserAdded, onUserDeleted }: Admi
                       <Eye className="w-4 h-4 mr-1" />
                       {t('admin.users.edit')}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-400 hover:text-red-300 hover:bg-red-600/20"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingUserId === user.id}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-600/20 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-gray-800 border-gray-700">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-white">
+                            {t('admin.users.deleteConfirm')}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-gray-400">
+                            Are you sure you want to delete user "{user.username}"? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600">
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteUser(user.id)}
+                            disabled={deletingUserId === user.id}
+                            className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </TableCell>
               </TableRow>

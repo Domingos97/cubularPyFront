@@ -22,19 +22,23 @@ const LanguageSwitcher: React.FC = () => {
 
   // Fallback languages for offline/error scenarios
   const fallbackLanguages: Array<{ code: SupportedLanguage; name: string; native_name: string; flag: string }> = [
-    { code: 'en', name: 'English', native_name: 'English', flag: '🇺🇸' },
-    { code: 'es', name: 'Spanish', native_name: 'Español', flag: '🇪🇸' },
-    { code: 'pt', name: 'Portuguese', native_name: 'Português', flag: '🇵🇹' },
-    { code: 'sv', name: 'Swedish', native_name: 'Svenska', flag: '🇸🇪' },
+    { code: 'en-US', name: 'English', native_name: 'English', flag: '🇺🇸' },
+    { code: 'es-ES', name: 'Spanish', native_name: 'Español', flag: '🇪🇸' },
+    { code: 'pt-PT', name: 'Portuguese', native_name: 'Português', flag: '🇵🇹' },
+    { code: 'sv-SE', name: 'Swedish', native_name: 'Svenska', flag: '🇸🇪' },
   ];
 
   // Language to flag mapping - expand as needed
   const getFlagForLanguage = (code: string): string => {
     const flagMap: Record<string, string> = {
       'en': '🇺🇸',
+      'en-US': '🇺🇸',
       'es': '🇪🇸', 
+      'es-ES': '🇪🇸',
       'pt': '🇵🇹',
+      'pt-PT': '🇵🇹',
       'sv': '🇸🇪',
+      'sv-SE': '🇸🇪',
       'fr': '🇫🇷',
       'de': '🇩🇪',
       'it': '🇮🇹',
@@ -46,6 +50,22 @@ const LanguageSwitcher: React.FC = () => {
       'hi': '🇮🇳',
     };
     return flagMap[code] || '🌐';
+  };
+
+  // Convert backend language codes to frontend locale codes
+  const convertToFrontendLocale = (backendCode: string): SupportedLanguage => {
+    const codeMap: Record<string, SupportedLanguage> = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'pt': 'pt-PT',
+      'sv': 'sv-SE',
+      // Also support direct mapping for full locale codes
+      'en-US': 'en-US',
+      'es-ES': 'es-ES',
+      'pt-PT': 'pt-PT',
+      'sv-SE': 'sv-SE'
+    };
+    return codeMap[backendCode] || 'en-US';
   };
 
   // Fetch supported languages from backend on component mount
@@ -125,11 +145,11 @@ const LanguageSwitcher: React.FC = () => {
   const displayLanguages = loading ? fallbackLanguages : 
     (Array.isArray(availableLanguages) && availableLanguages.length > 0) ? 
       availableLanguages.map(lang => ({
-        code: lang.code as SupportedLanguage,
+        code: convertToFrontendLocale(lang.code),
         name: lang.name,
         native_name: lang.native_name,
         flag: getFlagForLanguage(lang.code)
-      })).filter(lang => ['en', 'es', 'pt', 'sv'].includes(lang.code)) // Only show languages supported by frontend i18n
+      })).filter(lang => ['en-US', 'es-ES', 'pt-PT', 'sv-SE'].includes(lang.code)) // Only show languages supported by frontend i18n
       : fallbackLanguages;
 
   return (

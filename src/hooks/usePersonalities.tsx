@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { deduplicatedRequest } from '../utils/requestDeduplication';
 import { useAuth } from './useAuth';
+import { API_CONFIG, APP_CONFIG, buildApiUrl } from '@/config';
 
 export interface AIPersonality {
   id: string;
@@ -24,7 +25,7 @@ export interface UserPersonalityPreference {
   last_used_at: string;
 }
 
-export const usePersonalities = () => {
+export const usePersonalities = (context?: 'ai_chat_integration' | 'survey_builder' | 'all') => {
   const { user, loading: authLoading } = useAuth();
   const [personalities, setPersonalities] = useState<AIPersonality[]>([]);
   const [userPreferences, setUserPreferences] = useState<UserPersonalityPreference[]>([]);
@@ -64,14 +65,31 @@ export const usePersonalities = () => {
   const loadPersonalities = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8000/api/personalities', {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error('Failed to load personalities');
       const data = await response.json();
-      setPersonalities(data || []);
+      
+      // Filter personalities based on context
+      let filteredPersonalities = data || [];
+      
+      if (context === 'ai_chat_integration') {
+        // Exclude survey builder personality for semantic chat
+        filteredPersonalities = filteredPersonalities.filter((p: AIPersonality) => 
+          p.name !== 'Survey Builder Assistant'
+        );
+      } else if (context === 'survey_builder') {
+        // Only include survey builder personality for survey creation
+        filteredPersonalities = filteredPersonalities.filter((p: AIPersonality) => 
+          p.name === 'Survey Builder Assistant'
+        );
+      }
+      // If context is 'all' or undefined, return all personalities
+      
+      setPersonalities(filteredPersonalities);
     } catch (error) {
       setIsLoading(false);
     }
@@ -85,7 +103,7 @@ export const usePersonalities = () => {
         cacheDuration: forceRefresh ? 0 : CACHE_DURATION,
         request: async () => {
           const token = localStorage.getItem('authToken');
-          const response = await fetch('http://localhost:8000/api/users/me/preferred-personality', {
+          const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.PREFERRED_PERSONALITY), {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -121,7 +139,7 @@ export const usePersonalities = () => {
   const updateUserPreference = async (personalityId: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:8000/api/users/me/preferred-personality', {
+      await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.PREFERRED_PERSONALITY), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +167,7 @@ export const usePersonalities = () => {
   const setPreferredPersonality = async (personalityId: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:8000/api/users/me/preferred-personality', {
+      await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.PREFERRED_PERSONALITY), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

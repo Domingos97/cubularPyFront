@@ -9,6 +9,7 @@ import { Survey, SurveyFile } from "@/types/survey";
 import { FileAccess } from "@/types/fileAccess";
 import { authenticatedFetch, authenticatedApiRequest } from "@/utils/api";
 import { useTranslation } from "@/resources/i18n";
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface FileSelectionComponentProps {
   selectedSurvey: Survey | null;
@@ -56,7 +57,7 @@ export const FileSelectionComponent: React.FC<FileSelectionComponentProps> = ({
   // Fetch file access for current user for this survey
   const loadFileAccess = async (surveyId: string) => {
     try {
-      const data = await authenticatedApiRequest(`http://localhost:8000/api/surveys/${surveyId}/my-file-access`);
+      const data = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.MY_FILE_ACCESS(surveyId)));
       // data: Array<{ fileId, accessType }>
       const map: Record<string, FileAccess> = {};
       (data || []).forEach((fa: FileAccess) => {
@@ -79,7 +80,7 @@ export const FileSelectionComponent: React.FC<FileSelectionComponentProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await authenticatedApiRequest(`http://localhost:8000/api/surveys/${surveyId}/with-files`);
+      const data = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.WITH_FILES(surveyId)));
       const files = data.files || [];
       setSurveyFiles(files);
       // Do not auto-select here; handled in useEffect after both files and access map are loaded

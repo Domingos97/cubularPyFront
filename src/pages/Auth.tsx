@@ -37,12 +37,28 @@ const Auth = () => {
 
   const from = location.state?.from?.pathname || '/';
 
+  // Clear URL parameters on mount to prevent persistent error messages
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    
+    // If there are any URL parameters, handle them and then clear the URL
+    if (urlParams.toString()) {
+      // Let the confirmation handler run first, then clear URL
+      const timer = setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [location.search]);
+
   // Handle email confirmation URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const confirmed = urlParams.get('confirmed');
     const email = urlParams.get('email');
     const error = urlParams.get('error');
+    const message = urlParams.get('message');
 
     if (confirmed === 'true' && email) {
       // Auto-fill email and show success message
@@ -52,26 +68,19 @@ const Auth = () => {
         description: t('auth.emailConfirmedDesc'),
         variant: "default",
       });
-    } else if (error) {
-      // Handle confirmation errors
-      let errorMessage = t('auth.confirmationError');
-      switch (error) {
-        case 'invalid_token':
-          errorMessage = t('auth.invalidToken');
-          break;
-        case 'expired_token':
-          errorMessage = t('auth.expiredToken');
-          break;
-        case 'already_confirmed':
-          errorMessage = t('auth.alreadyConfirmed');
-          break;
-        case 'server_error':
-          errorMessage = t('auth.serverError');
-          break;
-      }
+    } else if (error && (error === 'invalid_token' || error === 'confirmation_failed')) {
+      // Handle confirmation errors - only show for actual confirmation attempts
+      let errorMessage = message ? decodeURIComponent(message) : t('auth.confirmationError');
+      
+      // Show the error briefly
       setError(errorMessage);
+      
+      // Clear the error after showing it
+      setTimeout(() => {
+        setError('');
+      }, 4000);
     }
-  }, [location.search, toast]);
+  }, [location.search, toast, t]);
 
   // Redirect after login, waiting for isAdmin to be set
   const navigate = useNavigate();

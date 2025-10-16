@@ -7,9 +7,10 @@ import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, X, Plus, Upload, AlertCircle, CheckCircle, FileSpreadsheet, Sparkles } from 'lucide-react';
+import { FileText, X, Upload, AlertCircle, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { authenticatedFetch } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import { SurveyFile, Survey, CreateSurveyRequest, AddFileToSurveyResponse } from '@/types/survey';
 import type { AIPersonality } from '@/hooks/usePersonalities';
 import { useTranslation } from '@/resources/i18n';
@@ -92,7 +93,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     const fetchPersonalities = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch('http://localhost:8000/api/personalities', {
+        const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES), {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -294,7 +295,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
     if (surveyData.category === '') surveyData.category = undefined;
     if (surveyData.description === '') surveyData.description = undefined;
     
-    const response = await authenticatedFetch('http://localhost:8000/api/surveys', {
+    const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(surveyData)
@@ -356,12 +357,13 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`http://localhost:8000/api/surveys/${activeSurveyId}/suggestions`, {
+      const response = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.GENERATE_SUGGESTIONS)}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           personalityId: selectedPersonality,
           fileContent: sampleContent,
+          surveyId: activeSurveyId,
         })
       });
       
@@ -427,11 +429,12 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
             };
           }
           
-          const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${activeSurveyId}/suggestions`, {
+          const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.GENERATE_SUGGESTIONS)}`, {
             method: 'POST',
             body: JSON.stringify({ 
               personalityId: selectedPersonality,
-              fileContent: fileContent
+              fileContent: fileContent,
+              surveyId: activeSurveyId
             })
           });
           
@@ -456,7 +459,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         formData.append('file', file.file);
         
         const response = await authenticatedFetch(
-          `http://localhost:8000/api/surveys/${activeSurveyId}/files`,
+          `${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${activeSurveyId}/files`,
           {
             method: 'POST',
             body: formData

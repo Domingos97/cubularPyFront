@@ -41,14 +41,3 @@ export interface PromptTranslationsResponse {
   translations: PromptTranslation[];
   total: number;
 }
-
-// For backward compatibility with existing i18n system
-export type LegacySupportedLanguage = 'en' | 'es' | 'pt' | 'sv';
-
-// Helper function to convert backend language to legacy type
-export function toLegacyLanguageCode(code: string): LegacySupportedLanguage {
-  const legacyCodes = ['en', 'es', 'pt', 'sv'] as const;
-  return legacyCodes.includes(code as LegacySupportedLanguage) 
-    ? code as LegacySupportedLanguage 
-    : 'en';
-}

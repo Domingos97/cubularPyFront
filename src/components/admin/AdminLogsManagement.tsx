@@ -25,6 +25,7 @@ import {
   Copy,
   X
 } from 'lucide-react';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface Log {
   id: string;
@@ -93,7 +94,7 @@ const AdminLogsManagement = () => {
         }
       });
 
-      const url = `http://localhost:8000/api/logs?${params}`;
+      const url = buildApiUrl(`${API_CONFIG.ENDPOINTS.LOGS}?${params}`);
       console.log('🔍 LOGS - Fetching:', url);
 
       const response = await authenticatedFetch(url);
@@ -195,7 +196,7 @@ const AdminLogsManagement = () => {
       const futureDate = new Date();
       futureDate.setFullYear(futureDate.getFullYear() + 1); // One year from now
       
-      const response = await authenticatedFetch('http://localhost:8000/api/logs', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.LOGS), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

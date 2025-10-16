@@ -15,11 +15,15 @@ import {
   Zap, 
   Shield,
   ArrowRight,
-  Star
+  Star,
+  ArrowDown,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { Plan, UserPlan, AVAILABLE_PLANS, PlanUpgradeRequest } from '@/types/plan';
 import { authenticatedFetch } from '@/utils/api';
 import { useTranslation } from '@/resources/i18n';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface PlanTabProps {
   className?: string;
@@ -29,6 +33,10 @@ export const PlanTab = ({ className }: PlanTabProps) => {
   const [currentPlan, setCurrentPlan] = useState<UserPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpgrading, setIsUpgrading] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
   const { t } = useTranslation();
 
@@ -53,30 +61,94 @@ export const PlanTab = ({ className }: PlanTabProps) => {
   const fetchCurrentPlan = async () => {
     try {
       setIsLoading(true);
-      const response = await authenticatedFetch('http://localhost:8000/api/user/plan');
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.USER_CURRENT));
       if (response.ok) {
         const data = await response.json();
-        setCurrentPlan(data);
+        console.log('=== DETAILED API RESPONSE DEBUG ===');
+        console.log('Full API Response:', JSON.stringify(data, null, 2));
+        console.log('Response type:', typeof data);
+        console.log('Has plan property:', 'plan' in data);
+        console.log('Plan value:', data.plan);
+        console.log('Plan type:', typeof data.plan);
+        console.log('================================');
+        
+        // Check if we have plan data
+        if (!data.plan) {
+          console.error('No plan data in API response');
+          console.error('Available keys in response:', Object.keys(data));
+          throw new Error('No plan data received from API');
+        }
+        
+        // Map API response to frontend UserPlan interface
+        const mappedPlan: UserPlan = {
+          id: data.id,
+          userId: data.user_id,
+          planId: data.plan_id,
+          plan: {
+            id: data.plan.name || data.plan.id || 'unknown', // Use plan name as ID to match AVAILABLE_PLANS
+            name: data.plan.name || 'Unknown Plan',
+            displayName: data.plan.name ? data.plan.name.charAt(0).toUpperCase() + data.plan.name.slice(1) : 'Unknown Plan',
+            description: data.plan.description || 'No description available',
+            price: data.plan.price || 0,
+            currency: 'USD',
+            billing: data.plan.billing_period === 'yearly' ? 'yearly' : 'monthly',
+            features: Array.isArray(data.plan.features) ? data.plan.features : 
+                     (typeof data.plan.features === 'string' ? JSON.parse(data.plan.features) : []),
+            limits: {
+              maxSurveys: data.plan.limits?.maxSurveys || data.plan.limits?.max_surveys || 'unlimited',
+              maxResponses: data.plan.limits?.maxResponses || data.plan.limits?.max_responses || 'unlimited',
+              maxUsers: data.plan.limits?.maxUsers || data.plan.limits?.max_users || 'unlimited',
+              maxStorage: data.plan.limits?.maxStorage || data.plan.limits?.max_storage || 'unlimited',
+              aiAnalysis: data.plan.limits?.aiAnalysis ?? data.plan.limits?.ai_analysis ?? true,
+              prioritySupport: data.plan.limits?.prioritySupport ?? data.plan.limits?.priority_support ?? false,
+              customBranding: data.plan.limits?.customBranding ?? data.plan.limits?.custom_branding ?? false,
+              apiAccess: data.plan.limits?.apiAccess ?? data.plan.limits?.api_access ?? false
+            },
+            popular: data.plan.name === 'pro' // Mark pro as popular
+          },
+          status: data.status === 'active' ? 'active' : 'expired',
+          startDate: data.start_date,
+          endDate: data.end_date,
+          trialEndsAt: data.trial_ends_at,
+          autoRenew: data.auto_renew,
+          usage: {
+            surveysUsed: 0, // TODO: Get actual usage from API
+            responsesUsed: 0, // TODO: Get actual usage from API
+            usersUsed: 1,
+            storageUsed: '0MB', // TODO: Get actual usage from API
+            lastUpdated: new Date().toISOString()
+          }
+        };
+        
+        // Update planId to match the plan name for comparison with AVAILABLE_PLANS
+        mappedPlan.planId = mappedPlan.plan.id;
+        
+        setCurrentPlan(mappedPlan);
       } else {
-        // Fallback to free plan if no plan found
-        const freePlan = AVAILABLE_PLANS.find(p => p.id === 'free');
-        if (freePlan) {
-          setCurrentPlan({
-            id: 'temp-free',
-            userId: 'current-user',
-            planId: 'free',
-            plan: freePlan,
-            status: 'active',
-            startDate: new Date().toISOString(),
-            autoRenew: false,
-            usage: {
-              surveysUsed: 0,
-              responsesUsed: 0,
-              usersUsed: 1,
-              storageUsed: '0MB',
-              lastUpdated: new Date().toISOString()
-            }
-          });
+        console.error('API Error:', response.status, response.statusText);
+        // Only fall back to free plan if it's a 404 (no plan found)
+        if (response.status === 404) {
+          const freePlan = AVAILABLE_PLANS.find(p => p.id === 'free');
+          if (freePlan) {
+            setCurrentPlan({
+              id: 'temp-free',
+              userId: 'current-user',
+              planId: 'free',
+              plan: freePlan,
+              status: 'active',
+              startDate: new Date().toISOString(),
+              autoRenew: false,
+              usage: {
+                surveysUsed: 0,
+                responsesUsed: 0,
+                usersUsed: 1,
+                storageUsed: '0MB',
+                lastUpdated: new Date().toISOString()
+              }
+            });
+          }
+        } else {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
         }
       }
     } catch (error) {
@@ -102,7 +174,7 @@ export const PlanTab = ({ className }: PlanTabProps) => {
         billing: 'monthly'
       };
 
-      const response = await authenticatedFetch('http://localhost:8000/api/user/plan/upgrade', {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.USER_UPGRADE), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -137,6 +209,75 @@ export const PlanTab = ({ className }: PlanTabProps) => {
       });
     } finally {
       setIsUpgrading(null);
+    }
+  };
+
+  const handleCancelPlan = async () => {
+    if (!currentPlan || currentPlan.plan.id === 'free') return;
+
+    setIsCancelling(true);
+    try {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.USER_CANCEL), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: t('settings.plan.cancelSuccess'),
+          description: result.message || t('settings.plan.downgradeSuccess'),
+        });
+        await fetchCurrentPlan(); // Refresh current plan
+        setShowCancelConfirm(false);
+      } else {
+        throw new Error('Failed to cancel plan');
+      }
+    } catch (error) {
+      console.error('Error cancelling plan:', error);
+      toast({
+        title: 'Error',
+        description: t('settings.plan.cancelError'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.DELETE_ACCOUNT), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: t('settings.plan.deleteAccountSuccess'),
+          description: result.message || 'Your account deletion request has been processed.',
+        });
+        setShowDeleteConfirm(false);
+        // Optionally redirect to login or logout
+        window.location.href = '/auth';
+      } else {
+        throw new Error('Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: 'Error',
+        description: t('settings.plan.deleteAccountError'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -322,6 +463,8 @@ export const PlanTab = ({ className }: PlanTabProps) => {
             {AVAILABLE_PLANS.map((plan) => {
               const isCurrentPlan = plan.id === currentPlan.planId;
               const canUpgrade = !isCurrentPlan && plan.price > currentPlan.plan.price;
+              const canDowngrade = !isCurrentPlan && plan.price < currentPlan.plan.price;
+              const isFreePlan = plan.id === 'free';
               
               return (
                 <div
@@ -390,6 +533,25 @@ export const PlanTab = ({ className }: PlanTabProps) => {
                             </>
                           )}
                         </Button>
+                      ) : canDowngrade ? (
+                        <Button
+                          onClick={() => handlePlanUpgrade(plan)}
+                          disabled={isUpgrading === plan.id}
+                          variant="outline"
+                          className="w-full border-orange-600 text-orange-400 hover:bg-orange-950/30"
+                        >
+                          {isUpgrading === plan.id ? (
+                            <>
+                              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-orange-400/20 border-t-orange-400"></div>
+                              Downgrading...
+                            </>
+                          ) : (
+                            <>
+                              <ArrowDown className="h-4 w-4 mr-2" />
+                              {isFreePlan ? 'Switch to Free' : 'Downgrade'}
+                            </>
+                          )}
+                        </Button>
                       ) : plan.badge === 'Contact Sales' ? (
                         <Button variant="outline" className="w-full">
                           <CreditCard className="h-4 w-4 mr-2" />
@@ -439,6 +601,143 @@ export const PlanTab = ({ className }: PlanTabProps) => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Danger Zone */}
+      <Card className="bg-red-950/20 border-red-800/50">
+        <CardHeader>
+          <CardTitle className="text-red-400 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            {t('settings.plan.dangerZone')}
+          </CardTitle>
+          <CardDescription className="text-red-300/70">
+            {t('settings.plan.dangerZoneDescription')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Cancel Plan */}
+          {currentPlan && currentPlan.plan.id !== 'free' && (
+            <div className="flex items-center justify-between p-4 border border-orange-800/50 rounded-lg bg-orange-950/20">
+              <div>
+                <h4 className="text-orange-400 font-medium">{t('settings.plan.cancelPlan')}</h4>
+                <p className="text-sm text-orange-300/70">
+                  {t('settings.plan.downgradeConfirm')}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCancelConfirm(true)}
+                disabled={isCancelling}
+                className="border-orange-600 text-orange-400 hover:bg-orange-950/30"
+              >
+                {isCancelling ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-orange-400/20 border-t-orange-400"></div>
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    {t('settings.plan.downgradeToFree')}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Delete Account */}
+          <div className="flex items-center justify-between p-4 border border-red-800/50 rounded-lg bg-red-950/20">
+            <div>
+              <h4 className="text-red-400 font-medium">{t('settings.plan.deleteAccount')}</h4>
+              <p className="text-sm text-red-300/70">
+                {t('settings.plan.deleteAccountConfirm')}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isDeletingAccount}
+              className="border-red-600 text-red-400 hover:bg-red-950/30"
+            >
+              {isDeletingAccount ? (
+                <>
+                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-red-400/20 border-t-red-400"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t('settings.plan.deleteAccount')}
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cancel Plan Confirmation Dialog */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="h-6 w-6 text-orange-400" />
+              <h3 className="text-lg font-semibold text-white">{t('settings.plan.cancelPlan')}</h3>
+            </div>
+            <p className="text-gray-300 mb-6">
+              {t('settings.plan.cancelPlanConfirm')}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelConfirm(false)}
+                disabled={isCancelling}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelPlan}
+                disabled={isCancelling}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {isCancelling ? 'Cancelling...' : 'Yes, Cancel Plan'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-400" />
+              <h3 className="text-lg font-semibold text-white">{t('settings.plan.deleteAccount')}</h3>
+            </div>
+            <p className="text-gray-300 mb-6">
+              {t('settings.plan.deleteAccountConfirm')}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeletingAccount}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+              >
+                {isDeletingAccount ? 'Deleting...' : 'Yes, Delete Account'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

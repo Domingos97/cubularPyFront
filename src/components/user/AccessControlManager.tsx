@@ -176,15 +176,7 @@ const AccessControlManager: React.FC<AccessControlManagerProps> = ({
                 </Button>
               </div>
               
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAccessHistory(!showAccessHistory)}
-                className="text-gray-300 border-gray-600"
-              >
-                <History className="h-4 w-4 mr-2" />
-                {showAccessHistory ? t('admin.accessControl.hideHistory') : t('admin.accessControl.showHistory')}
-              </Button>
+
               <Button
                 onClick={onOpenGrantDialog}
                 className="bg-green-600 hover:bg-green-700"

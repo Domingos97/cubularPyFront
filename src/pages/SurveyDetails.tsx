@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useToast } from '@/hooks/use-toast';
 import { MultiFileDataTable } from '@/components/survey/MultiFileDataTable';
 import { AddFileUpload } from '@/components/admin/AddFileUpload';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import * as XLSX from 'xlsx';
 import { authenticatedFetch, authenticatedApiRequest } from '@/utils/api';
 import { Survey, SurveyFile, ParsedSurveyData, SurveyStats } from '@/types/survey';
@@ -173,7 +174,7 @@ const SurveyDetails = () => {
   const fetchSurveyDetails = async () => {
     try {
       // Get survey with files (modern API only)
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}/with-files`);
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.WITH_FILES(surveyId)));
       
       if (!response.ok) {
         throw new Error('Failed to fetch survey details');
@@ -206,7 +207,7 @@ const SurveyDetails = () => {
 
   const fetchPersonalities = async () => {
     try {
-      const data: AIPersonality[] = await authenticatedApiRequest('http://localhost:8000/api/personalities');
+      const data: AIPersonality[] = await authenticatedApiRequest(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES));
       const activePersonalities = data.filter(p => p.is_active);
       setPersonalities(activePersonalities);
       
@@ -235,14 +236,14 @@ const SurveyDetails = () => {
     setDeleting(true);
     try {
       const surveyId = survey.id;
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete survey');
       
       // Clear the surveys cache so the admin page refreshes correctly
       const { clearCache } = await import('../utils/requestDeduplication');
-      clearCache('API-GET-http://localhost:8000/api/admin/access/surveys-files');
+      clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.ACCESS_SURVEYS_FILES)}`);
       
       // Clear unsaved changes since we're deleting the survey
       setHasUnsavedChanges({});
@@ -291,7 +292,7 @@ const SurveyDetails = () => {
     // Fetch data for the selected file
     setIsLoadingFileData(true);
     try {
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${survey?.id}/files/${fileId}/rows`);
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.ROWS(survey?.id, fileId)));
       if (!response.ok) {
         throw new Error('Failed to fetch file data');
       }
@@ -362,7 +363,7 @@ const SurveyDetails = () => {
         ).join(','))
       ].join('\n');
 
-      const response = await fetch(`http://localhost:8000/api/surveys/${survey?.id}/files/${fileId}/update`, {
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.UPDATE(survey?.id, fileId)), {
         method: 'PUT',
         headers: {
           'Content-Type': 'text/csv',
@@ -430,7 +431,7 @@ const SurveyDetails = () => {
     if (!window.confirm(`Remove "${fileToRemove.filename}" from this survey?`)) return;
     
     try {
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/files/${fileId}`, {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.DELETE(fileId)), {
         method: 'DELETE'
       });
       
@@ -658,7 +659,7 @@ const SurveyDetails = () => {
     if (!survey) return;
     try {
       const surveyId = survey.id;
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: editCategoryValue === 'none' ? null : editCategoryValue }),
@@ -685,7 +686,7 @@ const SurveyDetails = () => {
     if (!survey) return;
     try {
       const surveyId = survey.id;
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: editDescriptionValue || null }),
@@ -722,7 +723,7 @@ const SurveyDetails = () => {
     if (!survey) return;
     try {
       const surveyId = survey.id;
-      const response = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`, {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ai_suggestions: editSuggestionsValue }),
@@ -779,7 +780,7 @@ const SurveyDetails = () => {
       if (!surveyId) throw new Error('Survey ID not available');
       
       // Call the backend to generate new suggestions (replaces existing ones)
-      const res = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}/suggestions`, {
+      const res = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SUGGESTIONS(surveyId)), {
         method: 'POST',
         body: JSON.stringify({ 
           personalityId: selectedPersonalityId 
@@ -802,7 +803,7 @@ const SurveyDetails = () => {
         
         // Refresh survey details from backend to ensure consistency with saved data
         try {
-          const refreshResponse = await authenticatedFetch(`http://localhost:8000/api/surveys/${surveyId}`);
+          const refreshResponse = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)));
           if (refreshResponse.ok) {
             const refreshedSurvey = await refreshResponse.json();
             setSurvey(refreshedSurvey);

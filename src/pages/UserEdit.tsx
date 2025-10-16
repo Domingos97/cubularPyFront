@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedFetch, authenticatedApiRequest } from '@/utils/api';
+import { API_CONFIG, buildApiUrl } from '@/config';
 import AdminSidebar from '@/components/AdminSidebar';
 import UserSidebar from '@/components/UserSidebar';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,13 +29,11 @@ interface UserData {
   email: string;
   username: string;
   password?: string;
-  language?: string;
-  roleId: string;
+  language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
   created_at?: string;
   updated_at?: string;
   last_login?: string;
-  is_active?: boolean;
 }
 
 interface UserPlan {
@@ -136,7 +135,7 @@ export const UserEdit = () => {
   const fetchUser = async () => {
     try {
       setIsLoading(true);
-      const userData = await authenticatedApiRequest<UserWithAccess>(`http://localhost:8000/api/users/${userId}`);
+      const userData = await authenticatedApiRequest<UserWithAccess>(buildApiUrl(`/users/${userId}`));
       console.log('Fetched updated user data:', userData);
       setUser(userData);
     } catch (error) {
@@ -154,7 +153,7 @@ export const UserEdit = () => {
 
   const fetchSurveys = async () => {
     try {
-      const data = await authenticatedApiRequest<{surveys: Survey[]}>(`http://localhost:8000/api/admin/access/surveys-files`);
+      const data = await authenticatedApiRequest<{surveys: Survey[]}>(buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.ACCESS_SURVEYS_FILES));
       setSurveys(data?.surveys || []);
     } catch (error) {
       console.error('Error fetching surveys:', error);
@@ -173,18 +172,21 @@ export const UserEdit = () => {
       setIsSaving(true);
       const updateData: any = {
         username: user.username,
-        email: user.email,
-        language: user.language,
-        roleId: user.roleId,
-        preferred_personality: user.preferred_personality,
-        is_active: user.is_active
+        language: user.language_preference  // Use language_preference from user data
       };
+
+      // Only include preferred_personality if it's not null/undefined
+      if (user.preferred_personality) {
+        updateData.preferred_personality = user.preferred_personality;
+      }
 
       if (newPassword.trim()) {
         updateData.password = newPassword;
       }
 
-      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}`, {
+      console.log('Sending update data:', updateData);
+
+      const response = await authenticatedFetch(buildApiUrl(`/users/${user.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -200,8 +202,16 @@ export const UserEdit = () => {
         setNewPassword('');
         await fetchUser();
       } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update user');
+        const errorData = await response.text();
+        console.error('Update failed with status:', response.status, 'Error:', errorData);
+        let errorMessage = 'Failed to update user';
+        try {
+          const parsedError = JSON.parse(errorData);
+          errorMessage = parsedError.detail || parsedError.message || errorMessage;
+        } catch (e) {
+          errorMessage = errorData || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error updating user:', error);
@@ -232,7 +242,7 @@ export const UserEdit = () => {
       }
 
       // Always grant survey access
-      const surveyResponse = await authenticatedFetch('http://localhost:8000/api/admin/access/survey/grant', {
+      const surveyResponse = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.SURVEY_GRANT), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -254,7 +264,7 @@ export const UserEdit = () => {
       if (selectedFileIds.length > 0) {
         fileResponses = await Promise.all(
           selectedFileIds.map(fileId =>
-            authenticatedFetch('http://localhost:8000/api/admin/access/file/grant', {
+            authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.FILE_GRANT), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
@@ -371,8 +381,8 @@ export const UserEdit = () => {
 
     try {
       const endpoint = accessType === 'survey' 
-        ? 'http://localhost:8000/api/admin/access/survey/revoke' 
-        : 'http://localhost:8000/api/admin/access/file/revoke';
+        ? buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.SURVEY_REVOKE)
+        : buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.FILE_REVOKE);
 
       const payload = accessType === 'survey' 
         ? { userId: user.id, surveyId: itemId }
@@ -429,8 +439,8 @@ export const UserEdit = () => {
 
     try {
       const endpoint = type === 'survey' 
-        ? 'http://localhost:8000/api/admin/access/survey/grant' 
-        : 'http://localhost:8000/api/admin/access/file/grant';
+        ? buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.SURVEY_GRANT)
+        : buildApiUrl(API_CONFIG.ENDPOINTS.ADMIN.FILE_GRANT);
 
       const payload = type === 'survey' 
         ? {
@@ -616,9 +626,8 @@ export const UserEdit = () => {
             {/* Header */}
             <UserEditHeader
               username={user.username}
-              isSaving={isSaving}
+              showSaveButton={false}
               onBack={() => navigate('/admin')}
-              onSave={handleSaveUser}
             />
 
             <Tabs defaultValue={searchParams.get('tab') || 'profile'} className="space-y-6">
@@ -647,9 +656,11 @@ export const UserEdit = () => {
                   user={user}
                   newPassword={newPassword}
                   showPassword={showPassword}
+                  isSaving={isSaving}
                   onUserChange={handleUserChange}
                   onPasswordChange={setNewPassword}
                   onPasswordVisibilityToggle={() => setShowPassword(!showPassword)}
+                  onSave={handleSaveUser}
                 />
               </TabsContent>
 

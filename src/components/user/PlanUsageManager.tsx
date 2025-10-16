@@ -9,7 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedFetch } from '@/utils/api';
-import { Crown, Plus, Trash2, Calendar, AlertCircle } from 'lucide-react';
+import { Crown, Plus, Calendar, AlertCircle } from 'lucide-react';
+import { buildApiUrl, API_CONFIG } from '@/config';
 
 interface UserPlan {
   id: string;
@@ -66,7 +67,8 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'assign' | 'change'>('assign');
   
   const activePlan = user.user_plans?.[0];
 
@@ -91,7 +93,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
   const fetchAvailablePlans = async () => {
     try {
       console.log('Fetching available plans...');
-      const response = await authenticatedFetch('http://localhost:8000/api/plans/available');
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.AVAILABLE));
       
       if (response.ok) {
         const data = await response.json();
@@ -101,6 +103,68 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
         const errorData = await response.text();
       }
     } catch (error) {
+    }
+  };
+
+  const openAssignPlanDialog = () => {
+    setDialogMode('assign');
+    setSelectedPlanId('');
+    setShowPlanDialog(true);
+  };
+
+  const openChangePlanDialog = () => {
+    setDialogMode('change');
+    setSelectedPlanId('');
+    setShowPlanDialog(true);
+  };
+
+  const handleCancelPlan = async () => {
+    if (!activePlan) return;
+
+    setIsLoading(true);
+    try {
+      const response = await authenticatedFetch(
+        buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.REVOKE(user.id)), 
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_plan_id: activePlan.id
+          })
+        }
+      );
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Plan access removed successfully',
+          variant: 'default'
+        });
+        
+        setShowPlanDialog(false);
+        if (onUserUpdate) {
+          onUserUpdate();
+        }
+      } else {
+        const errorData = await response.text();
+        console.error('Failed to cancel plan:', errorData);
+        toast({
+          title: 'Error',
+          description: 'Failed to remove plan access',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error cancelling plan:', error);
+      toast({
+        title: 'Error',
+        description: 'An error occurred while removing plan access',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -133,16 +197,15 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
 
     setIsLoading(true);
     try {
-      const requestBody = {
-        planId: selectedPlanId
-      };
+      // Send plan_id as query parameter, not in request body
+      const url = `${buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.ASSIGN(user.id))}?plan_id=${encodeURIComponent(selectedPlanId)}`;
       
-      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}/assign-plan`, {
+      const response = await authenticatedFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
+        }
+        // No body needed since plan_id is sent as query parameter
       });
 
       if (response.ok) {
@@ -155,7 +218,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
           variant: 'default'
         });
         
-        setShowAssignDialog(false);
+        setShowPlanDialog(false);
         setSelectedPlanId('');
         
         // Immediately trigger refresh
@@ -171,48 +234,6 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
       toast({
         title: 'Error',
         description: error.message || 'Failed to assign plan',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRevokePlan = async () => {
-    if (!activePlan) return;
-
-    setIsLoading(true);
-    try {
-      const response = await authenticatedFetch(`http://localhost:8000/api/users/${user.id}/revoke-plan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userPlanId: activePlan.id
-        })
-      });
-
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Plan revoked successfully',
-          variant: 'default'
-        });
-        
-        // Immediately trigger refresh
-        if (onUserUpdate) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-          await onUserUpdate();
-        }
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to revoke plan');
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to revoke plan',
         variant: 'destructive'
       });
     } finally {
@@ -263,23 +284,65 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
           </div>
           {isAdmin && (
             <div className="flex gap-2">
-              <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+              <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="border-gray-600 text-gray-300 hover:bg-gray-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    {t('admin.planUsage.assignPlan')}
-                  </Button>
+                  {activePlan ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                      onClick={openChangePlanDialog}
+                    >
+                      <Crown className="h-4 w-4 mr-2" />
+                      {t('admin.planUsage.changePlan') || 'Change Plan'}
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                      onClick={openAssignPlanDialog}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {t('admin.planUsage.assignPlan')}
+                    </Button>
+                  )}
                 </DialogTrigger>
                 <DialogContent className="bg-gray-800 border-gray-700 text-white">
                   <DialogHeader>
-                    <DialogTitle>{t('admin.planUsage.assignPlanTitle')}</DialogTitle>
+                    <DialogTitle>
+                      {dialogMode === 'assign' 
+                        ? (t('admin.planUsage.assignPlanTitle') || 'Assign Plan')
+                        : (t('admin.planUsage.changePlan') || 'Change Plan')
+                      }
+                    </DialogTitle>
                     <DialogDescription className="text-gray-300">
-                      {t('admin.planUsage.assignPlanDescription', { username: user.username })}
+                      {dialogMode === 'assign' 
+                        ? (t('admin.planUsage.assignPlanDescription', { username: user.username }) || `Assign a plan to ${user.username}`)
+                        : (t('admin.planUsage.changePlanDescription', { username: user.username }) || `Change ${user.username}'s current plan`)
+                      }
                     </DialogDescription>
                   </DialogHeader>
+                  
                   <div className="space-y-4">
+                    {dialogMode === 'change' && activePlan && (
+                      <div className="p-4 bg-blue-600/10 border border-blue-600/20 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="h-4 w-4 text-blue-400" />
+                          <span className="text-sm font-medium text-blue-400">Current Plan</span>
+                        </div>
+                        <p className="text-gray-300">{activePlan.plans.display_name}</p>
+                        <p className="text-sm text-gray-400">
+                          Status: {activePlan.status} | Started: {formatDate(activePlan.start_date)}
+                          {activePlan.end_date && ` | Expires: ${formatDate(activePlan.end_date)}`}
+                        </p>
+                      </div>
+                    )}
+
                     <div>
-                      <Label className="text-gray-300">{t('admin.planUsage.selectPlan')}</Label>
+                      <Label className="text-gray-300">
+                        {dialogMode === 'assign' ? (t('admin.planUsage.selectPlan') || 'Select Plan') : 'New Plan'}
+                      </Label>
                       <Select 
                         value={selectedPlanId} 
                         onValueChange={(value) => {
@@ -288,7 +351,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
                         }}
                       >
                         <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                          <SelectValue placeholder={t('admin.planUsage.choosePlan')} />
+                          <SelectValue placeholder={t('admin.planUsage.choosePlan') || 'Choose a plan...'} />
                         </SelectTrigger>
                         <SelectContent className="bg-gray-800 border-gray-700">
                           {availablePlans.length > 0 ? (
@@ -297,7 +360,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
                                 <div className="flex items-center justify-between w-full">
                                   <span>{plan.display_name}</span>
                                   <span className="text-sm text-gray-400 ml-2">
-                                    ${plan.price}/{plan.billing === 'monthly' ? t('admin.planUsage.monthly') : t('admin.planUsage.yearly')}
+                                    ${plan.price}/{plan.billing === 'monthly' ? (t('admin.planUsage.monthly') || 'month') : (t('admin.planUsage.yearly') || 'year')}
                                   </span>
                                 </div>
                               </SelectItem>
@@ -310,38 +373,39 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
                         </SelectContent>
                       </Select>
                     </div>
+                    
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
-                        onClick={() => setShowAssignDialog(false)}
+                        onClick={() => setShowPlanDialog(false)}
                         className="border-gray-600 text-gray-300 hover:bg-gray-700"
                       >
-                        {t('admin.planUsage.cancel')}
+                        {t('admin.planUsage.cancel') || 'Cancel'}
                       </Button>
+                      
+                      {dialogMode === 'change' && (
+                        <Button
+                          variant="destructive"
+                          onClick={handleCancelPlan}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? 'Removing...' : 'Remove Plan Access'}
+                        </Button>
+                      )}
+                      
                       <Button
                         onClick={handleAssignPlan}
                         disabled={isLoading || !selectedPlanId}
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {isLoading ? t('admin.planUsage.assigning') : t('admin.planUsage.assign')}
+                        {isLoading ? (dialogMode === 'assign' ? (t('admin.planUsage.assigning') || 'Assigning...') : 'Changing...') : (
+                          dialogMode === 'assign' ? (t('admin.planUsage.assign') || 'Assign Plan') : 'Change Plan'
+                        )}
                       </Button>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
-              
-              {activePlan && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRevokePlan}
-                  disabled={isLoading}
-                  className="border-red-600 text-red-400 hover:bg-red-600/10"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {t('admin.planUsage.revokePlan')}
-                </Button>
-              )}
             </div>
           )}
         </div>
@@ -453,7 +517,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-gray-400 uppercase tracking-wide">{t('admin.planUsage.autoRenew')}</Label>
-                  <p className="text-gray-300">
+                  <div className="text-gray-300">
                     <Badge 
                       variant="outline" 
                       className={`${
@@ -464,7 +528,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
                     >
                       {activePlan.auto_renew ? t('admin.planUsage.autoRenewEnabled') : t('admin.planUsage.autoRenewDisabled')}
                     </Badge>
-                  </p>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-400 uppercase tracking-wide">{t('admin.planUsage.createdAt')}</Label>

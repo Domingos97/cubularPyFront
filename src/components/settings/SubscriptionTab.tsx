@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import NotificationRequestModal from '@/components/notifications/NotificationRequestModal';
 import { 
   Mail, 
   CreditCard, 
@@ -22,14 +23,6 @@ interface SubscriptionTabProps {
 export const SubscriptionTab = ({ className }: SubscriptionTabProps) => {
   const { toast } = useToast();
   const { t } = useTranslation();
-
-  const handleContactSupport = () => {
-    // TODO: Implement contact support functionality
-    toast({
-      title: t('settings.subscription.contactSupport'),
-      description: t('settings.subscription.openingSupportForm'),
-    });
-  };
 
   const handleDownloadInvoice = () => {
     // TODO: Implement invoice download
@@ -111,14 +104,20 @@ export const SubscriptionTab = ({ className }: SubscriptionTabProps) => {
               </div>
             </div>
             
-            <Button 
-              onClick={handleContactSupport}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Mail className="w-4 h-4" />
-              {t('settings.subscription.contactTeam')}
-              <ExternalLink className="w-4 h-4" />
-            </Button>
+            <NotificationRequestModal onNotificationSent={() => {
+              toast({
+                title: t('settings.subscription.contactSupport'),
+                description: t('settings.subscription.requestSentSuccessfully') || 'Your support request has been sent successfully.',
+              });
+            }}>
+              <Button 
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Mail className="w-4 h-4" />
+                {t('settings.subscription.contactTeam')}
+                <ExternalLink className="w-4 h-4" />
+              </Button>
+            </NotificationRequestModal>
           </div>
         </CardContent>
       </Card>
@@ -204,17 +203,23 @@ export const SubscriptionTab = ({ className }: SubscriptionTabProps) => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button 
-              variant="outline" 
-              className="text-gray-300 border-gray-600 hover:bg-gray-700 h-auto p-4"
-              onClick={handleContactSupport}
-            >
-              <div className="text-center">
-                <Mail className="h-6 w-6 mx-auto mb-2" />
-                <div className="font-medium">{t('settings.subscription.contactSupportTitle')}</div>
-                <div className="text-xs text-gray-500">{t('settings.subscription.getHelpWithBilling')}</div>
-              </div>
-            </Button>
+            <NotificationRequestModal onNotificationSent={() => {
+              toast({
+                title: t('settings.subscription.contactSupport'),
+                description: t('settings.subscription.requestSentSuccessfully') || 'Your support request has been sent successfully.',
+              });
+            }}>
+              <Button 
+                variant="outline" 
+                className="text-gray-300 border-gray-600 hover:bg-gray-700 h-auto p-4"
+              >
+                <div className="text-center">
+                  <Mail className="h-6 w-6 mx-auto mb-2" />
+                  <div className="font-medium">{t('settings.subscription.contactSupportTitle')}</div>
+                  <div className="text-xs text-gray-500">{t('settings.subscription.getHelpWithBilling')}</div>
+                </div>
+              </Button>
+            </NotificationRequestModal>
             
             <Button 
               variant="outline" 
