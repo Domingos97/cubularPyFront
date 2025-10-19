@@ -12,7 +12,7 @@ export interface LLMSettings {
 }
 
 class LLMSettingsAPI {
-  private baseUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.BASE);
+  private baseUrl = buildApiUrl(API_CONFIG.ENDPOINTS.LLM_SETTINGS.BASE + '/');
 
   // Get authentication token from localStorage
   private async getAuthToken(): Promise<string | null> {

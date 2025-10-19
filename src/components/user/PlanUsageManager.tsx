@@ -93,7 +93,7 @@ const PlanUsageManager: React.FC<PlanUsageManagerProps> = ({ user, isAdmin = fal
   const fetchAvailablePlans = async () => {
     try {
       console.log('Fetching available plans...');
-      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.AVAILABLE));
+  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PLANS.AVAILABLE + '/'));
       
       if (response.ok) {
         const data = await response.json();

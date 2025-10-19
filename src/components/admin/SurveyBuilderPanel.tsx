@@ -544,7 +544,8 @@ export const SurveyBuilderPanel = () => {
 
       console.log('🏗️ Generating survey with structured data:', surveyData);
 
-      const response = await authenticatedApiRequest<GeneratedSurvey>('/api/v1/survey-builder/generate-survey', {
+      const response = await authenticatedApiRequest<GeneratedSurvey>(
+        buildApiUrl(API_CONFIG.ENDPOINTS.SURVEY_BUILDER.GENERATED_SURVEYS), {
         method: 'POST',
         body: JSON.stringify(surveyData)
       });

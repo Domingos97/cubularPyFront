@@ -85,7 +85,7 @@ const AIPersonalityEdit = () => {
       ...formData
     };
     try {
-      const url = id ? buildApiUrl(`/personalities/${id}`) : buildApiUrl('/personalities');
+      const url = id ? buildApiUrl(`/personalities/${id}/`) : buildApiUrl('/personalities/');
       const method = id ? 'PUT' : 'POST';
       const response = await authenticatedFetch(url, {
         method,

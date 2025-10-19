@@ -1,157 +1,274 @@
-import { useState } from "react";
-import { Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useSurveys } from "@/contexts/SurveyContext";
-import { useTranslation } from "@/resources/i18n";
-import { Button } from "../components/ui/button";
+import { usePersonalities } from "@/hooks/usePersonalities";
+import AppHeader from "@/components/AppHeader";
 import AdminSidebar from "@/components/AdminSidebar";
 import UserSidebar from "@/components/UserSidebar";
-import EnhancedSurveyCard from "@/components/ui/EnhancedSurveyCard";
-import UserNotificationsBell from "@/components/notifications/UserNotificationsBell";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Survey } from "@/types/survey";
+import { useTranslation } from "@/resources/i18n";
+import { authenticatedFetch } from "@/utils/api";
+import { API_CONFIG, buildApiUrl } from '@/config';
 
-const SimplifiedIndex = () => {
-  const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
-  const { surveys: availableSurveys, isLoading: isLoadingSurveys, refreshSurveys } = useSurveys();
-  const { t } = useTranslation();
+// New modular components
+import { ChatComponent } from "@/components/survey-results/ChatComponent";
+import { PreChatSetupModal } from "@/components/chat/PreChatSetupModal";
 
-  // Debug: Log user data and admin status - DETAILED
-  console.log('🔍 INDEX PAGE DEBUG:', { 
-    user: user, 
-    userRole: user?.role, 
-    isAdmin: isAdmin,
-    roleCheck: user?.role === 'admin',
-    userKeys: user ? Object.keys(user) : 'no user'
-  });
-  
-  // Simple state management - only what's needed for survey selection
-  const [selectedSurveys, setSelectedSurveys] = useState<Survey[]>([]);
+const Index = () => {
+  // State management
+  const [activeTab, setActiveTab] = useState<'chat'>('chat');
+  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPersonalityId, setSelectedPersonalityId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showPreChatModal, setShowPreChatModal] = useState(false);
 
-  const handleSurveyToggle = (survey: Survey) => {
-    setSelectedSurveys(prev => {
-      const exists = prev.some(s => s.id === survey.id);
-      if (exists) {
-        return prev.filter(s => s.id !== survey.id);
+  // Track loading sessions to prevent duplicates
+  const loadingSessionsRef = useRef<Set<string>>(new Set());
+
+  // Hooks
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { t } = useTranslation();
+  
+  // Get user's preferred personality
+  const { selectedPersonality: userPreferredPersonality } = usePersonalities('ai_chat_integration');
+
+  // Handler for sidebar personality selection
+  const handleSidebarPersonalityChange = (personalityId: string) => {
+    setSelectedPersonalityId(personalityId);
+  };
+
+  // Handle URL parameters for chat session loading and survey restoration
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const sessionId = urlParams.get('session');
+    
+    if (sessionId && !loadingSessionsRef.current.has(sessionId)) {
+      // Switch to chat tab when session ID is in URL
+      setActiveTab('chat');
+      console.log('SurveyResults: detected session ID in URL:', sessionId);
+      
+      // Add to loading set to prevent duplicates
+      loadingSessionsRef.current.add(sessionId);
+      
+      // Load session to get survey information and restore survey selection
+      const loadSessionForSurvey = async () => {
+        try {
+          setIsLoading(true);
+          const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.CHAT.SESSION_DETAILS(sessionId)));
+          if (response.ok) {
+            const sessionData = await response.json();
+            console.log('SurveyResults: loaded session data for survey restoration:', sessionData);
+            
+            // Extract survey_id from session and load the survey
+            if (sessionData.survey_ids && sessionData.survey_ids.length > 0) {
+              const surveyId = sessionData.survey_ids[0];
+              console.log('SurveyResults: restoring survey from session:', surveyId);
+              
+              const surveyResponse = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)));
+              if (surveyResponse.ok) {
+                const surveyData = await surveyResponse.json();
+                console.log('SurveyResults: restored survey data:', surveyData);
+                setSelectedSurvey(surveyData);
+                setSearchTerm(`${surveyData.category} - ${surveyData.filename || surveyData.id}`);
+              } else {
+                console.warn(`SurveyResults: Failed to load survey ${surveyId}, status: ${surveyResponse.status}. User may not have access.`);
+                // Don't set survey if we can't access it
+              }
+            }
+          } else {
+            console.warn('SurveyResults: Session not found, clearing URL parameters');
+            // Clear URL parameter when session is not found to prevent infinite loops
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('session');
+            window.history.replaceState({}, '', newUrl.toString());
+          }
+        } catch (error) {
+          console.error('SurveyResults: Error loading session for survey restoration:', error);
+          // Clear URL parameter on error to prevent infinite loops
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('session');
+          window.history.replaceState({}, '', newUrl.toString());
+        } finally {
+          setIsLoading(false);
+          // Remove from loading set
+          loadingSessionsRef.current.delete(sessionId);
+        }
+      };
+      
+      // Only load if we don't already have a selected survey
+      if (!selectedSurvey) {
+        loadSessionForSurvey();
       } else {
-        return [...prev, survey];
+        // If we already have a survey, still remove from loading set
+        loadingSessionsRef.current.delete(sessionId);
+      }
+    }
+  }, [location.search, selectedSurvey]);
+
+  // Ensure default tab is selected on mount
+  useEffect(() => {
+    // Always ensure we have a default tab selected
+    if (!activeTab) {
+      setActiveTab('chat');
+    }
+  }, [activeTab]);
+
+  // Load initial state from navigation
+  useEffect(() => {
+    const state = location.state as any;
+    if (state) {
+      if (state.searchTerm) setSearchTerm(state.searchTerm);
+      if (state.selectedSurvey) setSelectedSurvey(state.selectedSurvey);
+      if (state.activeTab) setActiveTab(state.activeTab);
+      
+      // Handle selectedSurveys array from Index page - auto-select first survey
+      if (state.selectedSurveys && Array.isArray(state.selectedSurveys) && state.selectedSurveys.length > 0) {
+        const firstSurvey = state.selectedSurveys[0];
+        setSelectedSurvey(firstSurvey);
+        setSearchTerm(`${firstSurvey.category} - ${firstSurvey.filename || firstSurvey.id}`);
+      }
+    }
+  }, [location.state]);
+
+  // Initialize selectedPersonalityId with user's preferred personality
+  useEffect(() => {
+    if (!selectedPersonalityId && userPreferredPersonality) {
+      console.log('SurveyResults: Setting user preferred personality:', userPreferredPersonality.id);
+      setSelectedPersonalityId(userPreferredPersonality.id);
+    }
+  }, [userPreferredPersonality, selectedPersonalityId]);
+
+  // Survey change handler
+  const handleSurveyChange = async (survey: Survey) => {
+    setIsLoading(true);
+    
+    // Clear any previous state
+    setSelectedSurvey(survey);
+    setSearchTerm(survey ? `${survey.category} - ${survey.filename || survey.id}` : '');
+    
+    setIsLoading(false);
+  };
+
+  const handleResetSearch = () => {
+    navigate('/', {
+      state: {
+        resetSearch: true
       }
     });
   };
 
-
-
-  const handleAnalyzeSurveys = () => {
-    if (selectedSurveys.length === 0) return;
-    
-    // Navigate immediately without generating suggestions (suggestions will be loaded in chat tab when needed)
-    const categories = [...new Set(selectedSurveys.map(s => s.category))];
-    const categoryText = categories.length === 1 ? categories[0] : `${categories.length} categories`;
-    const searchTermText = `${categoryText} - ${selectedSurveys.length} survey${selectedSurveys.length > 1 ? 's' : ''}`;
-    
-    navigate('/survey-results', {
-      state: {
-        selectedSurveys,
-        searchTerm: searchTermText,
-        activeTab: 'audience' // Default to audience tab instead of 'stats'
-      }
-    });
+  const handleTabChange = (tab: 'chat') => {
+    // Immediate tab change for better UX
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
   };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const handleNewChat = () => {
+    setShowPreChatModal(true);
+  };
+
+  // Listen for custom event from ChatComponent to open new chat modal
+  useEffect(() => {
+    const handleOpenNewChatModal = () => {
+      setShowPreChatModal(true);
+    };
+
+    window.addEventListener('openNewChatModal', handleOpenNewChatModal);
+    return () => {
+      window.removeEventListener('openNewChatModal', handleOpenNewChatModal);
+    };
+  }, []);
+
+  const handleChatCreated = (sessionId: string, surveyId: string, selectedFiles: string[]) => {
+    // Navigate to the new chat session with pre-selected survey and files
+    navigate(`/?session=${sessionId}`, { 
+      state: {
+        selectedSurvey: selectedSurvey,
+        preloadedFiles: selectedFiles,
+        surveyId: surveyId
+      }
+    });
+  };
+
+  const renderTabContent = () => {
+    return (
+      <ChatComponent
+        selectedSurvey={selectedSurvey}
+        selectedPersonalityId={selectedPersonalityId}
+        onSurveyChange={handleSurveyChange}
+        onPersonalityChange={setSelectedPersonalityId}
+        onOpenNewChatModal={() => setShowPreChatModal(true)}
+      />
+    );
+  };
+
   return (
-    <div className="min-h-screen gradient-background font-grotesk">
+    <div className="flex h-screen bg-gray-900">
       {/* Sidebar */}
-      {user && user.role === 'admin' ? (
+      {user?.role === 'admin' ? (
         <AdminSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
       ) : (
         <UserSidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
       )}
-      
-      {/* Main Content */}
-      <div className="min-h-screen flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-white" 
-            onClick={toggleSidebar}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          
-          {/* User Notifications Bell - Show for all logged-in users for now */}
-          {user && (
-            <div className="flex items-center gap-2">
-              <LanguageSwitcher />
-              <UserNotificationsBell />
-              {/* Debug info */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="text-xs text-gray-500 absolute top-16 right-4">
-                  User: {user.email}, Role: {user.role}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* Survey Selection Content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
-          <div className="w-full max-w-4xl">
-            <h1 className="text-3xl font-bold text-white/90 mb-4 text-center">
-              {t('survey.availableSurveys')}
-            </h1>
-            <p className="text-xl text-white/70 mb-12 text-center max-w-2xl mx-auto">
-              {t('survey.selectToAnalyze')}
-            </p>
-            
-            {/* Survey Grid */}
-            <div className="space-y-4 mb-8">
-              {isLoadingSurveys ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/90"></div>
-                </div>
-              ) : availableSurveys.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-white/60 mb-4">{t('survey.noSurveysAvailable')}</p>
-                  <p className="text-white/40 text-sm">{t('survey.requestAccess')}</p>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <AppHeader 
+          searchTerm={searchTerm}
+          currentTab='chat'
+          onResetSearch={handleResetSearch}
+          onToggleSidebar={toggleSidebar}
+          onNewChat={handleNewChat}
+        />
+        
+        {/* Main Content */}
+        <main className="flex-1 overflow-hidden bg-gray-900">
+          <div className="h-full flex flex-col">
+            {/* Enhanced Tab Content Area */}
+            <div className="flex-1 overflow-hidden relative">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full bg-gray-900">
+                  <div className="text-center p-8">
+                    <div className="relative">
+                      <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-600 border-t-blue-500 mx-auto mb-4"></div>
+                      <div className="absolute inset-0 rounded-full h-12 w-12 border-2 border-gray-700 mx-auto animate-pulse"></div>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">{t('surveyResults.loading.title')}</h3>
+                    <p className="text-gray-400">{t('surveyResults.loading.subtitle')}</p>
+                  </div>
                 </div>
               ) : (
-                availableSurveys.map((survey) => (
-                  <EnhancedSurveyCard
-                    key={survey.id}
-                    survey={survey}
-                    isSelected={selectedSurveys.some(s => s.id === survey.id)}
-                    onToggle={handleSurveyToggle}
-                  />
-                ))
-              )}
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              {selectedSurveys.length > 0 && (
-                <Button 
-                  onClick={handleAnalyzeSurveys}
-                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg font-medium transition-all duration-150 hover:scale-105 active:scale-95"
-                  size="lg"
+                <div 
+                  key={activeTab} 
+                  className="h-full transition-all duration-300 ease-in-out animate-fade-in"
                 >
-                  {t('survey.analyzeSurveys', { count: selectedSurveys.length }, selectedSurveys.length)}
-                </Button>
+                  {renderTabContent()}
+                </div>
               )}
             </div>
           </div>
-        </div>
+        </main>
       </div>
+      
+      {/* Pre-Chat Setup Modal */}
+      <PreChatSetupModal
+        isOpen={showPreChatModal}
+        onClose={() => setShowPreChatModal(false)}
+        onChatCreated={handleChatCreated}
+        initialSurvey={selectedSurvey}
+        selectedPersonalityId={selectedPersonalityId}
+      />
     </div>
   );
 };
 
-export default SimplifiedIndex;
+export default Index;

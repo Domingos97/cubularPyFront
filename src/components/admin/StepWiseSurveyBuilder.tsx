@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { authenticatedApiRequest } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/resources/i18n';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface StepWiseSurveyBuilderProps {
   onClose?: () => void;
@@ -370,7 +371,8 @@ export const StepWiseSurveyBuilder: React.FC<StepWiseSurveyBuilderProps> = ({ on
 
       console.log('🏗️ Generating survey with structured data:', surveyData);
 
-      const response = await authenticatedApiRequest('/api/v1/survey-builder/generate-survey', {
+      const response = await authenticatedApiRequest(
+        buildApiUrl(API_CONFIG.ENDPOINTS.SURVEY_BUILDER.GENERATED_SURVEYS), {
         method: 'POST',
         body: JSON.stringify(surveyData)
       });

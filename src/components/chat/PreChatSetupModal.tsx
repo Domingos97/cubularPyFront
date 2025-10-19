@@ -184,7 +184,7 @@ export const PreChatSetupModal: React.FC<PreChatSetupModalProps> = ({
       // Validate access using the implemented endpoint
       setIsValidatingAccess(true);
       
-      console.log('🔍 FRONTEND: Making API call to:', `/api/surveys/${surveyId}/access-check`);
+  console.log('🔍 FRONTEND: Making API call to:', buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.ACCESS_CHECK(surveyId)));
       const accessResponse = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${surveyId}/access-check`), {
         method: 'GET'
       });

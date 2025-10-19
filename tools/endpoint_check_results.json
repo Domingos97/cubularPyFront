@@ -1,0 +1,573 @@
+{
+  "api_base": "https://cubularpyapi-production.up.railway.app/api/v1",
+  "total_tested": 63,
+  "results": [
+    {
+      "endpoint": "/admin/access/file/grant",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/file/grant",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/file/grant/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/admin/access/file/revoke",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/file/revoke",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/file/revoke/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/admin/access/my-surveys",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/my-surveys",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/my-surveys/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/admin/access/survey/grant",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/survey/grant",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/survey/grant/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/admin/access/survey/revoke",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/survey/revoke",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/survey/revoke/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/admin/access/surveys-files",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/surveys-files",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/admin/access/surveys-files/",
+      "status_no_slash": 200,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"surveys\":[{\"id\":\"019520d5-940c-4bf8-8baf-b03479e2fc3a\",\"title\":\"survei n100\",\"category\":\"survey_builder_generated\",\"description\":\"Survey generated from conversation on 2025-10-15 16:25:57\",\"processing_status\":\"pending\",\"created_at\":\"2025-10-15T15:25:57.307993+00:00\",\"updated_at\":\"2025-10-15T15:25:57.307993+00:00\",\"total_files\":1,\"survey_files\":[{\"id\":\"23f83f8e-f58a-4a81-a582-66ab6c241d41\",\"filename\":\"survei_n100_20251015_172557.csv\",\"file_size\":1884,\"storage_path\":\"survey_generated\\\\survei_n100_20251015_172557.csv\",\"file_hash\":null,\"upload_date\":\"2025-10-15T15:25:57.307993+00:00\",\"created_at\":\"2025-10-15T15:25:57.307993+00:00\",\"updated_at\":\"2025-10-15T15:25:57.307993+00:00\"}]},{\"id\":\"bdce24b7-c461-4ad5-a788-faa0508b5648\",\"title\":\"survei n100\",\"category\":\"other\",\"description\":\"survey\",\"processing_status\":\"completed\",\"created_at\":\"2025-10-14T19:22:45.094045+00:00\",\"updated_at\":\"2025-10-14T20:22:51.139592+00:00\",\"total_files\":1,\"survey_files\":[{\"id\":\"9710c066-d961-494c-8d97-88b1593f513b",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/auth/login",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/login",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/login/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/auth/logout",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/logout",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/logout/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/auth/refresh",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/refresh",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/refresh/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/auth/register",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/register",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/auth/register/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/chat/sessions",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/chat/sessions/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/chat/sessions/test-id/messages",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id/messages",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id/messages/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/chat/sessions/test-id/quick",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id/quick",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/chat/sessions/test-id/quick/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/languages/enabled",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/languages/enabled",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/languages/enabled/",
+      "status_no_slash": 200,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"languages\":[{\"code\":\"en\",\"name\":\"English\",\"native_name\":\"English\",\"is_rtl\":false},{\"code\":\"pt\",\"name\":\"Portuguese\",\"native_name\":\"Portugu\u00eas\",\"is_rtl\":false},{\"code\":\"es\",\"name\":\"Spanish\",\"native_name\":\"Espa\u00f1ol\",\"is_rtl\":false},{\"code\":\"sv\",\"name\":\"Swedish\",\"native_name\":\"Svenska\",\"is_rtl\":false}],\"total_languages\":4}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/languages/supported",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/languages/supported",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/languages/supported/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/llm-settings",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/",
+      "status_no_slash": 404,
+      "status_with_slash": 200,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "[{\"provider\":\"openai\",\"id\":\"16f041c8-4a5a-4adf-bb17-625fdb22fc71\",\"active\":true,\"api_key\":null,\"created_by\":null,\"created_at\":\"2025-10-05T04:51:13.871509Z\",\"updated_at\":\"2025-10-09T15:38:01.828163Z\"},{\"provider\":\"openrouter\",\"id\":\"b3ce7272-6a46-468f-acf9-7718ab32eaaf\",\"active\":true,\"api_key\":null,\"created_by\":null,\"created_at\":\"2025-10-03T20:59:21.344528Z\",\"updated_at\":\"2025-10-09T05:05:55.710277Z\"}]"
+    },
+    {
+      "endpoint": "/llm-settings/active/list",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/active/list",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/active/list/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/llm-settings/provider/test-id/decrypted-api-key",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/provider/test-id/decrypted-api-key",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/provider/test-id/decrypted-api-key/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/llm-settings/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/test-id/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/llm-settings/upsert",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/upsert",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/llm-settings/upsert/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/logs",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/logs",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/logs/",
+      "status_no_slash": 404,
+      "status_with_slash": 403,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not authenticated\"}"
+    },
+    {
+      "endpoint": "/module-configurations",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/module-configurations",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/module-configurations/",
+      "status_no_slash": 404,
+      "status_with_slash": 403,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not authenticated\"}"
+    },
+    {
+      "endpoint": "/notifications",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/",
+      "status_no_slash": 404,
+      "status_with_slash": 405,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Method Not Allowed\"}"
+    },
+    {
+      "endpoint": "/notifications/admin/all",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/admin/all",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/admin/all/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/notifications/admin/user/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/admin/user/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/admin/user/test-id/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/notifications/mark-all-read",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/mark-all-read",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/mark-all-read/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/notifications/my",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/my",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/my/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/notifications/my/unread-count",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/my/unread-count",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/my/unread-count/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/notifications/test-id/read",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/test-id/read",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/notifications/test-id/read/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/personalities",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/personalities",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/personalities/",
+      "status_no_slash": 404,
+      "status_with_slash": 403,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not authenticated\"}"
+    },
+    {
+      "endpoint": "/plans",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/plans",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/plans/",
+      "status_no_slash": 404,
+      "status_with_slash": 200,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "[{\"name\":\"free\",\"display_name\":\"Free\",\"description\":\"Perfect for getting started with survey analysis\",\"price\":0.0,\"currency\":\"USD\",\"billing\":\"monthly\",\"features\":[\"Up to 3 surveys\",\"Up to 100 responses per survey\",\"Basic AI analysis\",\"Community support\",\"Export to CSV\"],\"max_surveys\":3,\"max_responses\":100,\"priority_support\":false,\"api_access\":false,\"id\":\"94eaefce-4036-4b06-9071-752968c227f4\",\"is_active\":true,\"created_at\":\"2025-10-03T17:32:28.481820Z\",\"updated_at\":\"2025-10-03T17:32:28.481820Z\"},{\"name\":\"pro\",\"display_name\":\"Pro\",\"description\":\"Advanced features for professional survey analysis\",\"price\":29.0,\"currency\":\"USD\",\"billing\":\"monthly\",\"features\":[\"Unlimited surveys\",\"Up to 10,000 responses per month\",\"Advanced AI insights\",\"Priority email support\",\"Export to multiple formats\",\"Team collaboration (up to 5 users)\",\"Custom branding\"],\"max_surveys\":null,\"max_responses\":10000,\"priority_support\":true,\"api_access\":false,\"id\":\"4c9c21aa-49b4-4079-8aef-d5455bd0195b\",\"is_active\":true,\"cr"
+    },
+    {
+      "endpoint": "/plans/available",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/plans/available",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/plans/available/",
+      "status_no_slash": 200,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "[{\"name\":\"free\",\"display_name\":\"Free\",\"description\":\"Perfect for getting started with survey analysis\",\"price\":0.0,\"currency\":\"USD\",\"billing\":\"monthly\",\"features\":[],\"max_surveys\":3,\"max_responses\":100,\"priority_support\":false,\"api_access\":false,\"id\":\"94eaefce-4036-4b06-9071-752968c227f4\",\"is_active\":true,\"created_at\":\"2025-10-03T17:32:28.481820Z\",\"updated_at\":\"2025-10-03T17:32:28.481820Z\"},{\"name\":\"pro\",\"display_name\":\"Pro\",\"description\":\"Advanced features for professional survey analysis\",\"price\":29.0,\"currency\":\"USD\",\"billing\":\"monthly\",\"features\":[],\"max_surveys\":null,\"max_responses\":10000,\"priority_support\":true,\"api_access\":false,\"id\":\"4c9c21aa-49b4-4079-8aef-d5455bd0195b\",\"is_active\":true,\"created_at\":\"2025-10-03T17:32:28.481820Z\",\"updated_at\":\"2025-10-03T17:32:28.481820Z\"},{\"name\":\"enterprise\",\"display_name\":\"Enterprise\",\"description\":\"Complete solution for large organizations\",\"price\":99.0,\"currency\":\"USD\",\"billing\":\"monthly\",\"features\":[],\"max_surveys\":null,\"max_responses\":nu",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/prompts/translations",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/prompts/translations",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/prompts/translations/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/survey-builder",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/survey-builder/download-survey-file/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/download-survey-file/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/download-survey-file/test-id/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/survey-builder/generated-surveys",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/generated-surveys",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/generated-surveys/",
+      "status_no_slash": 200,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"success\":true,\"surveys\":[{\"id\":\"019520d5-940c-4bf8-8baf-b03479e2fc3a\",\"title\":\"survei n100\",\"category\":\"survey_builder_generated\",\"description\":\"Survey generated from conversation on 2025-10-15 16:25:57\",\"number_participants\":0,\"total_files\":1,\"processing_status\":\"pending\",\"primary_language\":\"en\",\"created_at\":\"2025-10-15T15:25:57.307993+00:00\",\"files\":[{\"id\":\"23f83f8e-f58a-4a81-a582-66ab6c241d41\",\"filename\":\"survei_n100_20251015_172557.csv\",\"storage_path\":\"survey_generated\\\\survei_n100_20251015_172557.csv\",\"file_size\":1884}]}]}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/survey-builder/view-file/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/view-file/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/survey-builder/view-file/test-id/",
+      "status_no_slash": 500,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Failed to view file\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/",
+      "status_no_slash": 404,
+      "status_with_slash": 405,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Method Not Allowed\"}"
+    },
+    {
+      "endpoint": "/surveys/files/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/files/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/files/test-id/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/generate-suggestions",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/generate-suggestions",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/generate-suggestions/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/semantic-chat",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/semantic-chat",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/semantic-chat/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/access-check",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/access-check",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/access-check/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/files",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/files/test-id/rows",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files/test-id/rows",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files/test-id/rows/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/files/test-id/update",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files/test-id/update",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/files/test-id/update/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/my-file-access",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/my-file-access",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/my-file-access/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/suggestions",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/suggestions",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/suggestions/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/test-id/with-files",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/with-files",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/test-id/with-files/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/surveys/upload",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/upload",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/surveys/upload/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/user-plans/cancel",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/cancel",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/cancel/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/user-plans/current",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/current",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/current/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/user-plans/upgrade",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/upgrade",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/user-plans/upgrade/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/",
+      "status_no_slash": 404,
+      "status_with_slash": 403,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not authenticated\"}"
+    },
+    {
+      "endpoint": "/users/me",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/me/language",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me/language",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me/language/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/me/preferred-personality",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me/preferred-personality",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/me/preferred-personality/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/profile",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/profile",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/profile/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/test-id/assign-plan",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/test-id/assign-plan",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/test-id/assign-plan/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/test-id/revoke-plan",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/test-id/revoke-plan",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/test-id/revoke-plan/",
+      "status_no_slash": 405,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Method Not Allowed\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/users/welcome-popup-dismissed",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/welcome-popup-dismissed",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/users/welcome-popup-dismissed/",
+      "status_no_slash": 403,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not authenticated\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    },
+    {
+      "endpoint": "/v1/survey-builder/chat",
+      "url_no_slash": "https://cubularpyapi-production.up.railway.app/api/v1/v1/survey-builder/chat",
+      "url_with_slash": "https://cubularpyapi-production.up.railway.app/api/v1/v1/survey-builder/chat/",
+      "status_no_slash": 404,
+      "status_with_slash": 404,
+      "body_no_slash_snippet": "{\"detail\":\"Not Found\"}",
+      "body_with_slash_snippet": "{\"detail\":\"Not Found\"}"
+    }
+  ]
+}

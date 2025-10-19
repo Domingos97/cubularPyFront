@@ -330,7 +330,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       if (onChatSelect) {
         onChatSelect(lastSession.id);
       }
-      navigate(`/survey-results?session=${lastSession.id}`, { replace: true });
+      navigate(`/?session=${lastSession.id}`, { replace: true });
     }
   }, [selectedSurvey?.id, filteredChatSessions, currentSession, isLoadingSession, onChatSelect, navigate, location.search]);
 
@@ -353,7 +353,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       onSurveyChange(null);
       clearAllSessions();
       // Navigate without session parameter to reset URL
-      navigate('/survey-results', { replace: true });
+      navigate('/', { replace: true });
       return;
     }
 
@@ -376,7 +376,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       loadChatSessions(surveyId);
       
       // Navigate without session parameter - auto-load will handle it if sessions exist
-      navigate('/survey-results', { replace: true });
+      navigate('/', { replace: true });
     } else {
       // Same survey selected, just update the selection
       onSurveyChange(survey);
@@ -398,7 +398,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
     }
     
     // Also navigate to include session ID in URL for proper state management
-    navigate(`/survey-results?session=${sessionId}`, { replace: true });
+    navigate(`/?session=${sessionId}`, { replace: true });
   };
 
   const handleLogout = async () => {

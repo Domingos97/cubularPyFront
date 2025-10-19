@@ -17,7 +17,6 @@ const Index = lazy(() => import("./pages/Index"));
 const About = lazy(() => import("./pages/About"));
 const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const SurveyResults = lazy(() => import("./pages/SurveyResults"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Admin = lazy(() => import("./pages/Admin"));
 const SurveyDetails = lazy(() => import("./pages/SurveyDetails"));
@@ -39,7 +38,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <LanguageProvider defaultLanguage="en">
+    <LanguageProvider defaultLanguage="en-US">
       <AuthProvider>
         <UserLanguageSync />
         <SurveyProvider>
@@ -69,11 +68,6 @@ const App = () => (
                 <Route path="/data-collection" element={
                   <ProtectedRoute>
                     <DataCollection />
-                  </ProtectedRoute>
-                } />
-                <Route path="/survey-results" element={
-                  <ProtectedRoute>
-                    <SurveyResults />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={

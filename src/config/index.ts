@@ -4,9 +4,13 @@
 // Centralized configuration for local development
 
 // API Configuration
+// Prefer environment variables (Vite prefixes VITE_) so hosting platforms can override without code changes.
+const ENV_BASE_URL = (import.meta.env.VITE_BASE_URL as string) || '';
+const ENV_API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '';
+
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_BASE_URL || 'http://localhost:3000',
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
+  BASE_URL: ENV_BASE_URL || 'https://cubularpyapi-production.up.railway.app',
+  API_BASE_URL: ENV_API_BASE || 'https://cubularpyapi-production.up.railway.app/api/v1',
   
   // Timeout settings
   REQUEST_TIMEOUT: 30000, // 30 seconds
@@ -25,11 +29,11 @@ export const API_CONFIG = {
       LANGUAGE: '/users/me/language',
       PREFERRED_PERSONALITY: '/users/me/preferred-personality',
       WELCOME_POPUP_DISMISSED: '/users/welcome-popup-dismissed',
-      BASE: '/users',
+      BASE: '/users/',
       DELETE_ACCOUNT: '/users/me',
     },
     SURVEYS: {
-      BASE: '/surveys',
+      BASE: '/surveys/',
       UPLOAD: '/surveys/upload',
       DETAILS: (id: string) => `/surveys/${id}`,
       WITH_FILES: (id: string) => `/surveys/${id}/with-files`,
@@ -53,7 +57,7 @@ export const API_CONFIG = {
       TRANSLATIONS: '/prompts/translations',
     },
     NOTIFICATIONS: {
-      BASE: '/notifications',
+      BASE: '/notifications/',
       MY: '/notifications/my',
       READ: (id: string) => `/notifications/${id}/read`,
       MARK_ALL_READ: '/notifications/mark-all-read',
@@ -77,16 +81,16 @@ export const API_CONFIG = {
       SESSION_MESSAGES: (id: string) => `/chat/sessions/${id}/messages`,
       SESSION_DETAILS: (id: string) => `/chat/sessions/${id}`,
     },
-    PERSONALITIES: '/personalities',
+    PERSONALITIES: '/personalities/',
     LLM_SETTINGS: {
-      BASE: '/llm-settings',
+      BASE: '/llm-settings/',
       ACTIVE_LIST: '/llm-settings/active/list',
       UPSERT: '/llm-settings/upsert',
       PROVIDER_KEY: (provider: string) => `/llm-settings/provider/${provider}/decrypted-api-key`,
       DELETE: (id: string) => `/llm-settings/${id}`,
     },
     PLANS: {
-      BASE: '/plans',
+      BASE: '/plans/',
       AVAILABLE: '/plans/available',
       USER_CURRENT: '/user-plans/current',
       USER_UPGRADE: '/user-plans/upgrade',
@@ -94,12 +98,12 @@ export const API_CONFIG = {
       ASSIGN: (userId: string) => `/users/${userId}/assign-plan`,
       REVOKE: (userId: string) => `/users/${userId}/revoke-plan`,
     },
-    LOGS: '/logs',
+    LOGS: '/logs/',
     MODULE_CONFIGURATIONS: {
-      BASE: '/module-configurations',
+      BASE: '/module-configurations/',
     },
     SURVEY_BUILDER: {
-      BASE: '/survey-builder',
+      BASE: '/survey-builder/',
       GENERATED_SURVEYS: '/survey-builder/generated-surveys',
       DOWNLOAD_FILE: (fileId: string) => `/survey-builder/download-survey-file/${fileId}`,
       VIEW_FILE: (fileId: string) => `/survey-builder/view-file/${fileId}`,

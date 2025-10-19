@@ -14,6 +14,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { API_CONFIG, buildApiUrl } from '@/config';
 
 interface ChatMessage {
   id: string;
@@ -61,21 +62,21 @@ export const ChatbotManagementPanel = () => {
       {
         id: '1',
         timestamp: new Date().toISOString(),
-        endpoint: '/api/surveys/semantic-chat',
+        endpoint: buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SEMANTIC_CHAT),
         status: 'success',
         response_time: 1200
       },
       {
         id: '2',
         timestamp: new Date(Date.now() - 300000).toISOString(),
-        endpoint: '/api/surveys/:id/suggestions',
+        endpoint: buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SUGGESTIONS(':id')),
         status: 'success',
         response_time: 800
       },
       {
         id: '3',
         timestamp: new Date(Date.now() - 600000).toISOString(),
-        endpoint: '/api/surveys/semantic-chat',
+        endpoint: buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SEMANTIC_CHAT),
         status: 'error',
         response_time: 5000,
         error: 'OpenAI API rate limit exceeded'

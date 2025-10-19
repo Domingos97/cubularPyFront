@@ -32,8 +32,8 @@ export const WelcomePopup = () => {
         return;
       }
       
-      // First test if auth is working by calling a known working endpoint
-      console.log('Testing authentication with /api/users/me/language...');
+  // First test if auth is working by calling a known working endpoint
+  console.log('Testing authentication with', buildApiUrl(API_CONFIG.ENDPOINTS.USERS.LANGUAGE));
       const testResponse = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS.LANGUAGE), {
         method: 'GET',
         headers: {

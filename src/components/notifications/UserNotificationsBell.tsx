@@ -95,7 +95,7 @@ const UserNotificationsBell = () => {
     
     try {
       setLoading(true);
-      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY + '?limit=50'));
+  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY + '/?limit=50'));
       
       if (response.ok) {
         const data = await response.json();

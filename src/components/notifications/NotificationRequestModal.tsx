@@ -407,7 +407,7 @@ export const NotificationHistory = ({ className = '' }: NotificationHistoryProps
     
     setLoading(true);
     try {
-      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY));
+  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MY + '/'));
       
       if (!response.ok) {
         throw new Error('Failed to load notifications');
