@@ -1160,7 +1160,7 @@ const SurveyDetails = () => {
                             {personalities.map((personality) => (
                               <SelectItem key={personality.id} value={personality.id}>
                                 <div className="flex flex-col">
-                                  <span className="font-medium">{personality.name}</span>
+                                  <span className="font-medium" data-select-name>{personality.name}</span>
                                   <span className="text-xs text-gray-400">{personality.description}</span>
                                 </div>
                               </SelectItem>

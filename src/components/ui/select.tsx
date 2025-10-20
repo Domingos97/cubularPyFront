@@ -112,24 +112,86 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-      className
-    )}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </SelectPrimitive.ItemIndicator>
-    </span>
+>(({ className, children, ...props }, ref) => {
+  // Search children recursively for an element with `data-select-name`.
+  // If found, return that element as `named` and return a version of the
+  // original children with that element removed (so it doesn't duplicate in
+  // the dropdown list).
+  const extractNamed = (node: React.ReactNode): { named: React.ReactNode | null; stripped: React.ReactNode | null } => {
+    if (node === null || node === undefined || typeof node === 'boolean') {
+      return { named: null, stripped: node as null };
+    }
 
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-  </SelectPrimitive.Item>
-))
+    if (typeof node === 'string' || typeof node === 'number') {
+      return { named: null, stripped: node as React.ReactNode };
+    }
+
+    if (Array.isArray(node)) {
+      const namedFound: { named: React.ReactNode | null } = { named: null };
+      const parts = node.map((child) => {
+        if (namedFound.named) return child;
+        const res = extractNamed(child);
+        if (res.named) namedFound.named = res.named;
+        return res.stripped;
+      });
+      return { named: namedFound.named, stripped: parts as React.ReactNode };
+    }
+
+    if (React.isValidElement(node)) {
+      const propsAny = (node.props as any) || {};
+      if (propsAny['data-select-name']) {
+        // This element is explicitly marked as the name.
+        return { named: node, stripped: null };
+      }
+
+      const childProp = propsAny.children;
+      if (childProp) {
+        const res = extractNamed(childProp);
+        if (res.named) {
+          // Clone this element but replace its children with the stripped children
+          const cloned = React.cloneElement(node, { ...node.props, children: res.stripped });
+          return { named: res.named, stripped: cloned };
+        }
+      }
+
+      // No named child found here
+      return { named: null, stripped: node };
+    }
+
+    return { named: null, stripped: null };
+  };
+
+  const { named, stripped } = extractNamed(children);
+
+  // Fallback: if no named element was found, use the full children as the ItemText
+  const itemTextChild = named ?? children;
+
+  return (
+    <SelectPrimitive.Item
+      ref={ref}
+      className={cn(
+        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+        <SelectPrimitive.ItemIndicator>
+          <Check className="h-4 w-4" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+
+      <SelectPrimitive.ItemText>{itemTextChild}</SelectPrimitive.ItemText>
+
+      {/* Render the stripped children (remaining content) so dropdown shows full info */}
+      {stripped && (
+        <div className="ml-8 flex-1">
+          {stripped}
+        </div>
+      )}
+    </SelectPrimitive.Item>
+  );
+})
 SelectItem.displayName = SelectPrimitive.Item.displayName
 
 const SelectSeparator = React.forwardRef<

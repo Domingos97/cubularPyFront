@@ -31,6 +31,7 @@ interface UserData {
   password?: string;
   language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
+  role?: string;
   has_ai_personalities_access?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -140,6 +141,7 @@ export const UserEdit = () => {
       const userData = await authenticatedApiRequest<UserWithAccess>(buildApiUrl(`/users/${userId}`));
       console.log('Fetched updated user data:', userData);
       setUser(userData);
+      return userData;
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({
@@ -177,6 +179,11 @@ export const UserEdit = () => {
         language: user.language_preference  // Use language_preference from user data
       };
 
+      // Include role when changed by admin
+      if (user.role) {
+        updateData.role = user.role;
+      }
+
       // Include AI personalities access flag if present
       if (typeof user.has_ai_personalities_access !== 'undefined') {
         updateData.has_ai_personalities_access = user.has_ai_personalities_access;
@@ -207,7 +214,34 @@ export const UserEdit = () => {
           description: t('user.updateSuccess')
         });
         setNewPassword('');
-        await fetchUser();
+        const refreshed = await fetchUser();
+
+        // Notify other admin UI components that this user was updated so they can refresh local state
+        try {
+          if (refreshed && typeof window !== 'undefined') {
+            // Dispatch event for mounted listeners
+            try { window.dispatchEvent(new CustomEvent('user-updated', { detail: refreshed })); } catch(e) { console.warn('Failed to dispatch user-updated event', e); }
+
+            // Also store in sessionStorage as a fallback for pages that are not mounted
+            try { sessionStorage.setItem('user-updated', JSON.stringify(refreshed)); } catch(e) { /* ignore */ }
+
+            // Clear cached users GET so other pages (Admin list) will fetch fresh data
+            try {
+              const { clearCache } = await import('@/utils/requestDeduplication');
+              clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE)}`);
+            } catch (e) {
+              // try alternative relative import if alias fails
+              try {
+                const { clearCache } = await import('../utils/requestDeduplication');
+                clearCache(`API-GET-${buildApiUrl(API_CONFIG.ENDPOINTS.USERS.BASE)}`);
+              } catch (e2) {
+                console.warn('Failed to clear users cache', e2);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to notify about user update', e);
+        }
 
         // If we updated the currently logged-in user's permissions, refresh tokens so the frontend gets updated claims
         try {

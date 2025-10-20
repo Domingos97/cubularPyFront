@@ -25,7 +25,7 @@ import {
 import { useTranslation } from '@/resources/i18n';
 import { authenticatedFetch } from '@/utils/api';
 
-const AIPersonalityEdit = () => {
+const UserAIPersonalityEdit = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -34,7 +34,6 @@ const AIPersonalityEdit = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    suggestions_prompt: '',
     detailed_analysis_prompt: '',
     is_active: true
   });
@@ -55,7 +54,6 @@ const AIPersonalityEdit = () => {
           setFormData({
             name: data.name || '',
             description: data.description || '',
-            suggestions_prompt: data.suggestions_prompt || '',
             detailed_analysis_prompt: data.detailed_analysis_prompt || '',
             is_active: data.is_active ?? true
           });
@@ -70,7 +68,6 @@ const AIPersonalityEdit = () => {
   }, [id, t]);
 
   const handleSave = async () => {
-    // Validation
     if (!formData.name.trim()) {
       toast.error('Personality name is required');
       return;
@@ -81,12 +78,9 @@ const AIPersonalityEdit = () => {
     }
 
     setIsSaving(true);
-    const payload = {
-      ...formData
-    };
+    const payload = { ...formData };
     try {
-  // Use no trailing slash for the PUT endpoint to match FastAPI route definitions
-  const url = id ? buildApiUrl(`/personalities/${id}`) : buildApiUrl('/personalities');
+      const url = id ? buildApiUrl(`/personalities/${id}`) : buildApiUrl('/personalities');
       const method = id ? 'PUT' : 'POST';
       const response = await authenticatedFetch(url, {
         method,
@@ -102,7 +96,7 @@ const AIPersonalityEdit = () => {
           ? t('personality.updateSuccess') || 'Personality updated successfully!'
           : t('personality.createSuccess') || 'Personality created successfully!'
       );
-      navigate('/admin');
+      navigate('/personalization');
     } catch (error) {
       console.error('Error saving personality:', error);
       toast.error(t('personality.saveError') || 'Failed to save personality');
@@ -112,7 +106,7 @@ const AIPersonalityEdit = () => {
   };
 
   const handleCancel = () => {
-    navigate('/admin');
+    navigate('/personalization');
   };
 
   const updateFormData = (field: string, value: any) => {
@@ -133,7 +127,6 @@ const AIPersonalityEdit = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
       <div className="w-full">
-        {/* Header Section */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
             <Button 
@@ -162,7 +155,6 @@ const AIPersonalityEdit = () => {
               </p>
             </div>
           </div>
-          
           <div className="flex items-center space-x-2">
             <Badge 
               variant={formData.is_active ? "default" : "secondary"}
@@ -188,7 +180,6 @@ const AIPersonalityEdit = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Basic Information - Left Column */}
           <div className="lg:col-span-1">
             <Card className="bg-gray-800/80 border-gray-700 h-fit">
               <CardHeader>
@@ -249,7 +240,6 @@ const AIPersonalityEdit = () => {
             </Card>
           </div>
 
-          {/* Prompt Configuration - Right Columns */}
           <div className="lg:col-span-3">
             <Card className="bg-gray-800/80 border-gray-700 h-full">
               <CardHeader>
@@ -263,27 +253,6 @@ const AIPersonalityEdit = () => {
               </CardHeader>
               <CardContent className="h-[calc(100vh-20rem)]">
                 <div className="h-full flex flex-col gap-6">
-                  {/* Suggestions Prompt (flex split) */}
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <MessageSquare className="w-4 h-4 text-purple-400" />
-                      <Label htmlFor="suggestions_prompt" className="text-gray-300 font-medium text-base">
-                        {t('personality.suggestions') || 'Suggestions Prompt'}
-                      </Label>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-4">
-                      {t('personality.suggestionsPlaceholder') || 'This prompt is used to generate short actionable suggestions.'}
-                    </p>
-                    <Textarea
-                      id="suggestions_prompt"
-                      value={formData.suggestions_prompt}
-                      onChange={(e) => updateFormData('suggestions_prompt', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500 font-mono text-sm resize-none flex-1 min-h-0 h-full"
-                      placeholder={t('personality.suggestionsPlaceholder') || 'Enter the prompt used to produce suggestions...'}
-                    />
-                  </div>
-
-                  {/* Detailed Analysis Prompt (flex split) */}
                   <div className="flex-1 flex flex-col">
                     <div className="flex items-center space-x-2 mb-3">
                       <FileText className="w-4 h-4 text-green-400" />
@@ -298,7 +267,7 @@ const AIPersonalityEdit = () => {
                       id="detailed_analysis_prompt" 
                       value={formData.detailed_analysis_prompt} 
                       onChange={(e) => updateFormData('detailed_analysis_prompt', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500 font-mono text-sm resize-none flex-1 min-h-0 h-full"
+                      className="bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500 font-mono text-sm resize-none flex-1 min-h-0"
                       placeholder={t('personality.detailedAnalysisPlaceholder') || 'Enter the prompt that will guide detailed analysis...'}
                     />
                   </div>
@@ -308,7 +277,6 @@ const AIPersonalityEdit = () => {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex justify-end space-x-4 mt-6">
           <Button 
             variant="outline" 
@@ -339,7 +307,6 @@ const AIPersonalityEdit = () => {
           </Button>
         </div>
 
-        {/* Validation Warning */}
         {(!formData.name.trim() || !formData.description.trim()) && (
           <div className="mt-4">
             <Card className="bg-amber-900/20 border-amber-700/50">
@@ -359,4 +326,4 @@ const AIPersonalityEdit = () => {
   );
 };
 
-export default AIPersonalityEdit;
+export default UserAIPersonalityEdit;

@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Plus, Edit, Trash2, Eye, EyeOff, Star } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,10 +11,12 @@ import { useTranslation } from '@/resources/i18n';
 import { authenticatedApiRequest } from '@/utils/api';
 import { API_CONFIG, buildApiUrl } from '@/config';
 import type { AIPersonality } from '@/hooks/usePersonalities';
+import { useAuth } from '@/hooks/useAuth';
 
 
-export const AIPersonalityManager = () => {
+export const AIPersonalityManager: React.FC<{ ownerId?: string; onlyMine?: boolean }> = ({ ownerId, onlyMine }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [personalities, setPersonalities] = useState<AIPersonality[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -29,12 +25,43 @@ export const AIPersonalityManager = () => {
 
   useEffect(() => {
     loadPersonalities();
-  }, []);
+  }, [ownerId, onlyMine, user?.id]);
 
   const loadPersonalities = async () => {
     try {
       const data = await authenticatedApiRequest<AIPersonality[]>(buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES));
-      setPersonalities(data);
+
+  // Start with the fetched list
+  let filtered: AIPersonality[] = data || [];
+
+  // Debug: log raw data to help diagnose filtering issues
+  console.debug('Loaded personalities raw:', data?.length, data);
+
+      const currentUserId = user?.id || null;
+
+      if (ownerId || onlyMine) {
+        // If caller requested owner filtering, only include those matching the owner/current user
+        const matchId = ownerId || (onlyMine ? currentUserId : null);
+        if (matchId) {
+          filtered = filtered.filter((p: any) => {
+            return p?.created_by === matchId || p?.owner_id === matchId || p?.user_id === matchId;
+          });
+        } else if (onlyMine && !currentUserId) {
+          // If onlyMine requested but no user available, return empty list until auth resolves
+          filtered = [];
+        }
+      } else {
+        // Admin/default view: exclude any personalities created by users (those with a created_by field)
+        filtered = filtered.filter((p: any) => {
+          // Consider created_by present if it's a non-empty string (backend may send '' or null)
+          const hasCreatedBy = typeof p?.created_by === 'string' && p.created_by.trim().length > 0;
+          const hasOwner = typeof p?.owner_id === 'string' && p.owner_id.trim().length > 0;
+          const hasUser = typeof p?.user_id === 'string' && p.user_id.trim().length > 0;
+          return !hasCreatedBy && !hasOwner && !hasUser;
+        });
+      }
+
+      setPersonalities(filtered);
     } catch (error) {
       console.error('Error loading personalities:', error);
       toast.error(t('admin.personalities.loadFailed'));
@@ -56,7 +83,7 @@ export const AIPersonalityManager = () => {
     if (!personalityToDelete) return;
     
     try {
-      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${personalityToDelete}`, {
+  await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}${personalityToDelete}`, {
         method: 'DELETE'
       });      toast.success(t('admin.personalities.deleteSuccess'));
       loadPersonalities();
@@ -70,7 +97,7 @@ export const AIPersonalityManager = () => {
 
   const toggleActive = async (id: string, isActive: boolean) => {
     try {
-      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${id}`, {
+  await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}${id}`, {
         method: 'PUT',
         body: JSON.stringify({ is_active: !isActive })
       });
@@ -94,7 +121,7 @@ export const AIPersonalityManager = () => {
 
   const setAsDefault = async (id: string) => {
     try {
-      await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}/${id}/set-default`, {
+  await authenticatedApiRequest(`${buildApiUrl(API_CONFIG.ENDPOINTS.PERSONALITIES)}${id}/set-default`, {
         method: 'POST'
       });
       toast.success(t('admin.personalities.defaultUpdated'));

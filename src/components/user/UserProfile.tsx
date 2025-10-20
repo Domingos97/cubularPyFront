@@ -235,7 +235,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 <SelectContent className="bg-gray-800 border-gray-600">
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Administrator</SelectItem>
-                  <SelectItem value="super_admin">Super Administrator</SelectItem>
                 </SelectContent>
               </Select>
             </div>

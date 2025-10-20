@@ -15,6 +15,7 @@ interface AppHeaderProps {
   onExportCSV?: () => void;
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
+  large?: boolean;
 }
 const AppHeader = ({
   searchTerm = "holiday",
@@ -24,6 +25,7 @@ const AppHeader = ({
   onExportCSV,
   onToggleSidebar,
   onNewChat
+  , large = false
 }: AppHeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,18 +48,21 @@ const AppHeader = ({
       }
     });
   };
+  const frameClass = large ? 'h-[72px]' : 'h-[50px]';
+  const cubularTextClass = large ? 'text-sm md:text-base font-semibold text-gray-100' : 'text-xs font-medium text-gray-100';
+
   return (
     <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800/60">
         {/* Header container with consistent padding and spacing */}
         <div className="flex flex-col">
           {/* First frame - search term */}
-          <div className="h-[50px] px-3 md:px-6">
+          <div className={`${frameClass} px-3 md:px-6`}>
             <div className="h-full flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {/* Cubular label (left) - survey title removed */}
                 <Button variant="ghost" className="h-8 p-1 rounded-md text-blue-500 hover:bg-gray-800 transition-colors" onClick={navigateToHome}>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-gray-100">CUBULAR</span>
+                    <span className={cubularTextClass}>CUBULAR</span>
                   </div>
                 </Button>
               </div>
@@ -87,7 +92,7 @@ const AppHeader = ({
           </div>
           
           {/* Second frame - respondent count and action buttons */}
-          <div className="h-[50px] px-3 md:px-6">
+          <div className={`${frameClass} px-3 md:px-6`}>
             <div className="h-full flex items-center justify-between">
               {/* Removed search icon and its button */}
               

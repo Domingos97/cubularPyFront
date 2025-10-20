@@ -20,6 +20,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const Admin = lazy(() => import("./pages/Admin"));
 const SurveyDetails = lazy(() => import("./pages/SurveyDetails"));
 const AIPersonalityEdit = lazy(() => import("./pages/AIPersonalityEdit"));
+const UserAIPersonalityEdit = lazy(() => import("./pages/UserAIPersonalityEdit"));
 const UserEdit = lazy(() => import("./pages/UserEdit").then(module => ({ default: module.UserEdit })));
 const Personalization = lazy(() => import("./pages/Personalization"));
 const Contact = lazy(() => import("./pages/Contact"));
@@ -81,6 +82,16 @@ const App = () => (
                     <AIPersonalityEdit />
                   </ProtectedRoute>
                 } />
+                  <Route path="/personalization/personalities/:id/edit" element={
+                    <ProtectedRoute>
+                      <UserAIPersonalityEdit />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/personalization/personalities/new" element={
+                    <ProtectedRoute>
+                      <UserAIPersonalityEdit />
+                    </ProtectedRoute>
+                  } />
                 <Route path="/admin/users/:userId/edit" element={
                   <ProtectedRoute adminOnly>
                     <UserEdit />

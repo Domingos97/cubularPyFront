@@ -59,7 +59,54 @@ const Admin = () => {
   });
 
   useEffect(() => {
-    fetchData();
+    let didFetch = false;
+    const fetchAndSetup = async () => {
+      await fetchData();
+      didFetch = true;
+    };
+
+    fetchAndSetup();
+
+    // Listen for user-updated events from other admin UI (e.g. UserEdit) to update list in-place
+    const onUserUpdated = (e: any) => {
+      try {
+        const updatedUser = e?.detail;
+        if (!updatedUser || !updatedUser.id) return;
+        setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, username: updatedUser.username, email: updatedUser.email, role: updatedUser.role } : u));
+      } catch (err) {
+        console.warn('Failed to handle user-updated event', err);
+      }
+    };
+    window.addEventListener('user-updated', onUserUpdated as EventListener);
+
+    // Check sessionStorage fallback (in case event was dispatched before this page mounted)
+    const checkPending = () => {
+      try {
+        const pending = sessionStorage.getItem('user-updated');
+        if (pending) {
+          const updatedUser = JSON.parse(pending);
+          if (updatedUser && updatedUser.id) {
+            setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, username: updatedUser.username, email: updatedUser.email, role: updatedUser.role } : u));
+          }
+          sessionStorage.removeItem('user-updated');
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    // If fetch already finished, check immediately, otherwise wait briefly after fetch completes
+    const pendingCheckInterval = setInterval(() => {
+      if (didFetch) {
+        checkPending();
+        clearInterval(pendingCheckInterval);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(pendingCheckInterval);
+      window.removeEventListener('user-updated', onUserUpdated as EventListener);
+    };
   }, []);
 
   const fetchData = async () => {

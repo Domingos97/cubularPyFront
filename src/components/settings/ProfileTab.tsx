@@ -41,6 +41,28 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
       setEmail(user.email);
     }
   }, [user]);
+  // Normalize any incoming language value (from user object or API) to frontend locale
+  // Convert backend short codes (e.g. 'en') to frontend locale codes (e.g. 'en-US')
+  const convertToFrontendLocale = (backendCode: string): string => {
+    const codeMap: Record<string, string> = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'pt': 'pt-PT',
+      'sv': 'sv-SE',
+      // allow passthrough for already full locale codes
+      'en-US': 'en-US',
+      'es-ES': 'es-ES',
+      'pt-PT': 'pt-PT',
+      'sv-SE': 'sv-SE'
+    };
+    return codeMap[backendCode] || backendCode;
+  };
+
+  const normalizeLocale = (value?: string): string => {
+    if (!value) return '';
+    // If it's already a full locale we keep it, otherwise try to convert
+    return convertToFrontendLocale(value);
+  };
 
   // Load available languages and user's current preference
   useEffect(() => {
@@ -50,7 +72,7 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
         setAvailableLanguages(languages);
         
         // Set current user's language preference or default to current language
-        const userLangPreference = user?.language_preference || currentLanguage;
+        const userLangPreference = normalizeLocale(user?.language_preference) || currentLanguage;
         setSelectedLanguage(userLangPreference);
       } catch (error) {
         console.error('Failed to load languages:', error);
@@ -326,7 +348,7 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
                   <SelectContent>
                     {availableLanguages && availableLanguages.length > 0 ? (
                       availableLanguages.map((language) => (
-                        <SelectItem key={language.code} value={language.code}>
+                        <SelectItem key={language.code} value={convertToFrontendLocale(language.code)}>
                           <div className="flex items-center gap-2">
                             <span>{getFlagForLanguage(language.code)}</span>
                             <span>{language.native_name}</span>
