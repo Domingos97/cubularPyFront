@@ -53,9 +53,6 @@ export const API_CONFIG = {
       SUPPORTED: '/languages/supported',
       ENABLED: '/languages/enabled',
     },
-    PROMPTS: {
-      TRANSLATIONS: '/prompts/translations',
-    },
     NOTIFICATIONS: {
       BASE: '/notifications/',
       MY: '/notifications/my',

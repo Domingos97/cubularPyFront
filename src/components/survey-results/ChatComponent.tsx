@@ -6,6 +6,7 @@ import { ThinkingCube } from "@/components/ui/ThinkingCube";
 import { authenticatedFetch } from "@/utils/api";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatSessions } from "@/hooks/useChatSessions";
+import { getSnapshot as getChatStoreSnapshot } from '@/hooks/chatSessionsStore';
 import { useAuth } from "@/hooks/useAuth";
 import { Send, X, BarChart3, Eye, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -369,7 +370,10 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         sender: "user",
         timestamp: new Date()
       };
-      try { setCurrentMessages([...(currentMessages || []), userMessage as any]); } catch (e) { /* noop */ }
+      try {
+        const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
+        setCurrentMessages([...storeMsgs, userMessage as any]);
+      } catch (e) { /* noop */ }
 
       // Add typing indicator
       const typingMessage: Message = {
@@ -378,7 +382,10 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         sender: "assistant",
         timestamp: new Date()
       };
-      try { setCurrentMessages([...(currentMessages || []), typingMessage as any]); } catch (e) { /* noop */ }
+      try {
+        const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
+        setCurrentMessages([...storeMsgs, typingMessage as any]);
+      } catch (e) { /* noop */ }
 
       // Call backend API for AI analysis with sessionId
       const chatRequestBody: any = {
@@ -440,7 +447,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
       // Remove typing indicator and add response to central store
       try {
-        const filtered = (currentMessages || []).filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
+        const latestMsgs = (getChatStoreSnapshot().currentMessages) || [];
+        const filtered = latestMsgs.filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
         setCurrentMessages(filtered.concat([assistantResponse as any]));
       } catch (e) {
         console.warn('ChatComponent: failed to update central messages after assistant response', e);
@@ -455,7 +463,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       console.error('Error sending message:', error);
       // Remove typing indicator and show error in central store UI
       try {
-        const filtered = (currentMessages || []).filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
+        const latestMsgs = (getChatStoreSnapshot().currentMessages) || [];
+        const filtered = latestMsgs.filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
         setCurrentMessages(filtered.concat([{
           id: `error-${Date.now()}`,
           content: t('surveyResults.chat.errorOccurred'),
