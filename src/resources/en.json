@@ -593,7 +593,7 @@
   "chatSidebar.noHistory": "No chat history yet",
   "chatSidebar.noHistoryForSurvey": "No chat history for this survey yet",
   "chatSidebar.openMenu": "Open chat session menu",
-  "chatSidebar.selectSurvey": "Select Survey",
+  "chatSidebar.selectSurvey": "Select Data Stream",
   "chatSidebar.title": "Survey Chat",
   "common.cancel": "Cancel",
   "common.close": "Close",
