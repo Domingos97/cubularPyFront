@@ -863,18 +863,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         </Card>
       )}
 
-      {/* Simplified full-screen loading overlay while uploading/processing */}
-      {(uploading || processing) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-auto">
-          <div className="absolute inset-0 bg-black/60" />
-          <div className="relative z-60 flex flex-col items-center gap-4">
-            {/* Rotating cube-like block */}
-            <div className="w-16 h-16 bg-blue-600 transform rotate-12 animate-spin-slow" style={{ perspective: '600px' }} />
-            <div className="text-white font-medium">Uploading and processing files…</div>
-            <div className="text-sm text-gray-300">This may take a few moments. You will be notified when processing finishes.</div>
-          </div>
-        </div>
-      )}
+      {/* Previously there was a full-screen overlay here. We now render only an inline rotating cube at the end of the form */}
 
       {/* Upload Button */}
       <Button
@@ -896,6 +885,8 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
           </>
         )}
       </Button>
+
+      {/* No extra large cube — keep only the small spinner inside the Upload button */}
     </div>
   );
 };
