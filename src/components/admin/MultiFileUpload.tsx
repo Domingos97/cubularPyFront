@@ -497,16 +497,23 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         onFilesUploaded(uploadedFiles);
       }
 
-      // Mark processing as complete and reset form
+      // Mark processing as complete
       setProcessingComplete(true);
+      // Stop uploading state (processing continues in background)
       setUploading(false);
-      
+
       // Hide creation form after successful upload (but not when just generating suggestions)
       setShowCreationForm(false);
-      
-      // Reset form after successful completion
-      resetForm();
-      
+
+      // Clear selected files and some form fields but preserve createdSurveyId and processingComplete
+      setSelectedFiles([]);
+      setSurveyTitle('');
+      setCategory('');
+      setDescription('');
+      setNumberParticipants(undefined);
+      setAiSuggestions([]);
+      setSelectedPersonality(personalities.find(p => p.is_default)?.id || '');
+
       if (onUploadComplete) {
         onUploadComplete();
       }
