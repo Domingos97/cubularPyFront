@@ -7,9 +7,11 @@ export interface User {
   created_at?: string;
   updated_at?: string;
   preferred_personality?: string;
+  has_ai_personalities_access?: boolean;
   language_preference?: string; // ISO 639-1 with region code (e.g., 'en-US', 'es-ES', 'pt-PT', 'sv-SE')
   role_id?: string;
   role?: string; // Simple string role from JWT (e.g., 'admin', 'user')
+  avatar?: string; // optional URL to user's avatar image
   role_details?: {
     id: string;
     name: string;

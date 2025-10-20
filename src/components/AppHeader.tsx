@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { X } from 'lucide-react';
 import { useNavigate, useLocation } from "react-router-dom";
 import UserNotificationsBell from "@/components/notifications/UserNotificationsBell";
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from "@/hooks/useAuth";
 interface AppHeaderProps {
   searchTerm?: string;
@@ -53,24 +54,33 @@ const AppHeader = ({
           <div className="h-[50px] px-3 md:px-6">
             <div className="h-full flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-white" onClick={onToggleSidebar}>
-                  <Menu className="h-5 w-5" />
-                </Button>
-                <h2 className="text-2xl font-grotesk font-semibold text-white pb-0.5 translate-y-[2px]">"{searchTerm}"</h2>
-              </div>
-              
-              {/* Right side with notification bell and Cubular logo */}
-              <div className="flex items-center gap-2">
-                {/* User Notifications Bell - Show for all logged-in users */}
-                {user && (
-                  <UserNotificationsBell />
-                )}
-                
-                {/* Cubular logo */}
+                {/* Cubular label (left) - survey title removed */}
                 <Button variant="ghost" className="h-8 p-1 rounded-md text-blue-500 hover:bg-gray-800 transition-colors" onClick={navigateToHome}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium text-gray-100">CUBULAR</span>
                   </div>
+                </Button>
+              </div>
+
+              {/* Right side with notification bell, avatar and menu (moved to far right) */}
+              <div className="flex items-center gap-3">
+                {/* User Notifications Bell - Show for all logged-in users */}
+                {user && (
+                  <UserNotificationsBell />
+                )}
+
+                {/* User avatar (circle) - show fallback initials when image missing */}
+                {user && (
+                  <Avatar>
+                    {/* if user has an avatar url, use AvatarImage with src when available */}
+                    <AvatarImage src={user?.avatar || '/placeholder.svg'} alt={user?.username || 'User'} />
+                    <AvatarFallback>{user?.username ? user.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+                  </Avatar>
+                )}
+
+                {/* Menu button moved to right */}
+                <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-full text-gray-400 hover:text-white" onClick={onToggleSidebar}>
+                  <Menu className="h-5 w-5" />
                 </Button>
               </div>
             </div>

@@ -131,15 +131,16 @@ const NotificationRequestModal = ({ onNotificationSent, children }: Notification
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl bg-gray-900 border-gray-700">
+      {/* Reduced max width and added responsive scrollable content */}
+      <DialogContent className="max-w-xl w-full bg-gray-900 border-gray-700">
         <DialogHeader>
           <DialogTitle className="text-white">{t('notifications.sendRequest')}</DialogTitle>
           <DialogDescription className="text-gray-300">
             {t('notifications.sendRequestDesc')}
           </DialogDescription>
         </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Make form scrollable if content is tall */}
+        <form onSubmit={handleSubmit} className="space-y-6 max-h-[65vh] overflow-y-auto pr-2">
           {/* Notification Type Selection */}
           <div className="space-y-3">
             <Label className="text-white">{t('notifications.requestType')}</Label>
@@ -256,8 +257,8 @@ const NotificationRequestModal = ({ onNotificationSent, children }: Notification
             </div>
           )}
 
-          {/* Submit Buttons */}
-          <div className="flex justify-end space-x-3 pt-4">
+          {/* Submit Buttons - keep visible at bottom by using sticky footer */}
+          <div className="flex justify-end space-x-3 pt-4 sticky bottom-0 bg-gradient-to-t from-gray-900/80 to-transparent pb-3">
             <Button
               type="button"
               variant="outline"

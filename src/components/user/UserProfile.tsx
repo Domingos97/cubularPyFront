@@ -32,6 +32,7 @@ interface UserData {
   password?: string;
   language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
+  has_ai_personalities_access?: boolean;
   role?: string;  // Add role field
   created_at?: string;
   updated_at?: string;
@@ -155,6 +156,21 @@ const UserProfile: React.FC<UserProfileProps> = ({
                   placeholder={t('admin.userEdit.enterEmail')}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* AI Personalities Access Checkbox */}
+          <div className="space-y-2">
+            <Label className="text-gray-300">AI Personalities Access</Label>
+            <div className="flex items-center">
+              <input
+                id="has_ai_personalities_access"
+                type="checkbox"
+                checked={!!user.has_ai_personalities_access}
+                onChange={(e) => handleInputChange('has_ai_personalities_access', e.target.checked)}
+                className="mr-2 h-4 w-4"
+              />
+              <label htmlFor="has_ai_personalities_access" className="text-sm text-gray-300">Allow user to use AI personalities</label>
             </div>
           </div>
 

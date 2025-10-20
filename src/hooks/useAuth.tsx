@@ -53,7 +53,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: decoded.email,
           role: userRole,
           language_preference: decoded.language || 'en',
-          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
+          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false,
+          has_ai_personalities_access: typeof decoded.has_ai_personalities_access !== 'undefined' ? !!decoded.has_ai_personalities_access : false,
         };
         
         setUser(userData);
@@ -117,7 +118,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: decoded.email,
           role: decoded.role,
           language_preference: decoded.language || 'en',
-          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
+          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false,
+          has_ai_personalities_access: typeof decoded.has_ai_personalities_access !== 'undefined' ? !!decoded.has_ai_personalities_access : false,
         };
         setUser(userData);
         
@@ -186,20 +188,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       if (data.accessToken && data.refreshToken) {
+        // Persist new tokens
         localStorage.setItem('authToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
         localStorage.setItem('tokenExpiry', (Date.now() + (data.expiresIn * 1000)).toString());
+
+        // Decode new token and update local user state so permission flags are refreshed
+        try {
+          const decoded: any = jwtDecode(data.accessToken);
+          const userData = {
+            id: decoded.sub || decoded.id,
+            email: decoded.email,
+            role: decoded.role,
+            language_preference: decoded.language || 'en',
+            welcome_popup_dismissed: decoded.welcome_popup_dismissed || false,
+            has_ai_personalities_access: typeof decoded.has_ai_personalities_access !== 'undefined' ? !!decoded.has_ai_personalities_access : false
+          };
+          setUser(userData);
+        } catch (e) {
+          // If decoding fails, still return the token but log the issue
+          console.warn('Failed to decode refreshed access token:', e);
+        }
+
         return data.accessToken;
       }
 
       throw new Error('Invalid refresh response');
     } catch (error) {
+      // Log the error but do not clear user/auth state here. Caller should decide how to handle failures.
       console.error('Error refreshing token:', error);
-      // Clear all auth data on refresh failure
-      setUser(null);
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('tokenExpiry');
       throw error;
     }
   };
@@ -260,7 +277,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             email: decoded.email,
             role: decoded.role,
             language_preference: decoded.language || 'en',
-            welcome_popup_dismissed: decoded.welcome_popup_dismissed || false
+            welcome_popup_dismissed: decoded.welcome_popup_dismissed || false,
+            has_ai_personalities_access: typeof decoded.has_ai_personalities_access !== 'undefined' ? !!decoded.has_ai_personalities_access : false,
           };
           
           setUser(userData);
@@ -293,6 +311,46 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     return () => clearInterval(refreshInterval);
   }, [user]);
+
+  // Listen for global token refresh/clear events dispatched from shared utilities (e.g. authenticatedFetch)
+  useEffect(() => {
+    const onTokenRefreshed = (ev: any) => {
+      try {
+        const accessToken = ev?.detail?.accessToken || localStorage.getItem('authToken');
+        if (!accessToken) return;
+        const decoded: any = jwtDecode(accessToken);
+        const userData = {
+          id: decoded.sub || decoded.id,
+          email: decoded.email,
+          role: decoded.role,
+          language_preference: decoded.language || 'en',
+          welcome_popup_dismissed: decoded.welcome_popup_dismissed || false,
+          has_ai_personalities_access: typeof decoded.has_ai_personalities_access !== 'undefined' ? !!decoded.has_ai_personalities_access : false,
+        };
+        setUser(userData);
+      } catch (e) {
+        console.warn('Failed to update user from tokenRefreshed event:', e);
+      }
+    };
+
+    const onTokenCleared = () => {
+      setUser(null);
+    };
+
+    try {
+      window.addEventListener('auth:tokenRefreshed', onTokenRefreshed as EventListener);
+      window.addEventListener('auth:tokenCleared', onTokenCleared as EventListener);
+    } catch (e) {
+      // non-browser environment
+    }
+
+    return () => {
+      try {
+        window.removeEventListener('auth:tokenRefreshed', onTokenRefreshed as EventListener);
+        window.removeEventListener('auth:tokenCleared', onTokenCleared as EventListener);
+      } catch (e) {}
+    };
+  }, []);
 
   // Function to update user data locally
   const updateUser = (updates: Partial<User>) => {

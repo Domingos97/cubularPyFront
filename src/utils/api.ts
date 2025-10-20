@@ -3,11 +3,7 @@
 import { API_CONFIG, APP_CONFIG, buildApiUrl } from '@/config';
 import type { 
   SupportedLanguage, 
-  SupportedLanguagesResponse, 
-  PromptTranslation, 
-  PromptTranslationsResponse,
-  CreatePromptTranslationRequest,
-  UpdatePromptTranslationRequest 
+  SupportedLanguagesResponse
 } from '@/types/language';
 
 export const getAuthHeaders = (includeContentType: boolean = true) => {
@@ -47,6 +43,12 @@ export const refreshAccessToken = async (): Promise<string> => {
     localStorage.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, data.accessToken);
     localStorage.setItem(APP_CONFIG.STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
     localStorage.setItem(APP_CONFIG.STORAGE_KEYS.TOKEN_EXPIRY, (Date.now() + (data.expiresIn * 1000)).toString());
+    try {
+      // Notify app that tokens were refreshed so listeners (e.g. useAuth) can update in-memory user
+      window.dispatchEvent(new CustomEvent('auth:tokenRefreshed', { detail: { accessToken: data.accessToken } }));
+    } catch (e) {
+      // ignore in non-browser or strict environments
+    }
     return data.accessToken;
   }
 
@@ -80,6 +82,7 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('tokenExpiry');
+        try { window.dispatchEvent(new CustomEvent('auth:tokenCleared')); } catch (e) {}
         console.error('Token refresh failed:', refreshError);
       }
     }
@@ -113,6 +116,7 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('tokenExpiry');
+        try { window.dispatchEvent(new CustomEvent('auth:tokenCleared')); } catch (e) {}
         console.error('Token refresh failed on 401 retry:', refreshError);
         // Return the original 401 response
         return response;
@@ -206,74 +210,6 @@ export const updateUserLanguagePreference = async (languageCode: string): Promis
   }
 };
 
-// Prompt Translations API Functions
-
-/**
- * Fetch prompt translations for a specific personality and language
- */
-export const fetchPromptTranslations = async (
-  personalityId: string, 
-  languageCode?: string
-): Promise<PromptTranslationsResponse> => {
-  const params = new URLSearchParams({ personality_id: personalityId });
-  if (languageCode) {
-    params.append('language_code', languageCode);
-  }
-  
-  const response = await authenticatedFetch(
-    `${buildApiUrl(API_CONFIG.ENDPOINTS.PROMPTS.TRANSLATIONS)}?${params.toString()}`
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to fetch prompt translations: ${response.status}`);
-  }
-  return response.json();
-};
-
-/**
- * Create a new prompt translation
- */
-export const createPromptTranslation = async (
-  data: CreatePromptTranslationRequest
-): Promise<PromptTranslation> => {
-  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.PROMPTS.TRANSLATIONS), {
-    method: 'POST',
-    body: JSON.stringify(data)
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to create prompt translation: ${response.status}`);
-  }
-  return response.json();
-};
-
-/**
- * Update an existing prompt translation
- */
-export const updatePromptTranslation = async (
-  translationId: string,
-  data: UpdatePromptTranslationRequest
-): Promise<PromptTranslation> => {
-  const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.PROMPTS.TRANSLATIONS)}/${translationId}`, {
-    method: 'PUT',
-    body: JSON.stringify(data)
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update prompt translation: ${response.status}`);
-  }
-  return response.json();
-};
-
-/**
- * Delete a prompt translation
- */
-export const deletePromptTranslation = async (translationId: string): Promise<void> => {
-  const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.PROMPTS.TRANSLATIONS)}/${translationId}`, {
-    method: 'DELETE'
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to delete prompt translation: ${response.status}`);
-  }
-};
-
 /**
  * Update user profile
  */
@@ -321,7 +257,7 @@ export const markNotificationAsRead = async (notificationId: string): Promise<an
  * Mark all notifications as read for the current user
  */
 export const markAllNotificationsAsRead = async (): Promise<any> => {
-  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.READ_ALL), {
+  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

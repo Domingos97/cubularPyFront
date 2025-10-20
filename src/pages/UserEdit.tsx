@@ -31,6 +31,7 @@ interface UserData {
   password?: string;
   language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
+  has_ai_personalities_access?: boolean;
   created_at?: string;
   updated_at?: string;
   last_login?: string;
@@ -105,6 +106,7 @@ export const UserEdit = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { refreshToken } = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
@@ -175,6 +177,11 @@ export const UserEdit = () => {
         language: user.language_preference  // Use language_preference from user data
       };
 
+      // Include AI personalities access flag if present
+      if (typeof user.has_ai_personalities_access !== 'undefined') {
+        updateData.has_ai_personalities_access = user.has_ai_personalities_access;
+      }
+
       // Only include preferred_personality if it's not null/undefined
       if (user.preferred_personality) {
         updateData.preferred_personality = user.preferred_personality;
@@ -201,6 +208,16 @@ export const UserEdit = () => {
         });
         setNewPassword('');
         await fetchUser();
+
+        // If we updated the currently logged-in user's permissions, refresh tokens so the frontend gets updated claims
+        try {
+          if (user.id && currentUser && user.id === currentUser.id) {
+            // refreshToken updates local user state in useAuth
+            await refreshToken();
+          }
+        } catch (e) {
+          console.warn('Failed to refresh token after updating current user:', e);
+        }
       } else {
         const errorData = await response.text();
         console.error('Update failed with status:', response.status, 'Error:', errorData);

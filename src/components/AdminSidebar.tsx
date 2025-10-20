@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Info, Settings, MessageCircle, X, LogOut, Shield, Database } from 'lucide-react';
+import { Info, Settings, MessageCircle, X, LogOut, Shield, Database, Brain, Mail } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { NavigationMenu } from './sidebar/NavigationMenu';
@@ -50,19 +50,19 @@ const AdminSidebar = ({
       path: "/about"
     }, 
     {
-      title: t('navigation.dataCollection'),
-      icon: <Database className="w-4 h-4" />,
-      path: "/data-collection"
+      title: t('navigation.contactUs'),
+      icon: <Mail className="w-4 h-4" />,
+      path: "/contact"
     },
     {
-      title: t('navigation.settings'),
-      icon: <Settings className="w-4 h-4" />,
-      path: "/settings"
-    }, 
+      title: t('navigation.personalization'),
+      icon: <Brain className="w-4 h-4" />,
+      path: "/personalization"
+    },
     {
-      title: t('navigation.feedback'),
-      icon: <MessageCircle className="w-4 h-4" />,
-      path: "#"
+      title: t('navigation.profile'),
+      icon: <Settings className="w-4 h-4" />,
+      path: "/profile"
     },
     {
       title: t('navigation.adminPanel'),

@@ -15,14 +15,15 @@ import { Suspense, lazy } from "react";
 // Lazy load pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
 const About = lazy(() => import("./pages/About"));
-const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Auth = lazy(() => import("./pages/Auth"));
 const Admin = lazy(() => import("./pages/Admin"));
 const SurveyDetails = lazy(() => import("./pages/SurveyDetails"));
 const AIPersonalityEdit = lazy(() => import("./pages/AIPersonalityEdit"));
 const UserEdit = lazy(() => import("./pages/UserEdit").then(module => ({ default: module.UserEdit })));
-const DataCollection = lazy(() => import("./pages/DataCollection"));
+const Personalization = lazy(() => import("./pages/Personalization"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -60,16 +61,6 @@ const App = () => (
                     <About />
                   </ProtectedRoute>
                 } />
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                } />
-                <Route path="/data-collection" element={
-                  <ProtectedRoute>
-                    <DataCollection />
-                  </ProtectedRoute>
-                } />
                 <Route path="/admin" element={
                   <ProtectedRoute adminOnly>
                     <Admin />
@@ -96,6 +87,21 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />
+                <Route path="/contact" element={
+                  <ProtectedRoute>
+                    <Contact />
+                  </ProtectedRoute>
+                } />
+                <Route path="/personalization" element={
+                  <ProtectedRoute>
+                    <Personalization />
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } />
                 </Routes>
               </Suspense>
             </ErrorBoundary>

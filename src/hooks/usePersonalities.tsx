@@ -44,6 +44,17 @@ export const usePersonalities = (context?: 'ai_chat_integration' | 'survey_build
     
     // Only fetch personalities if user is authenticated
     if (user) {
+      // If the backend/user flags indicate the user should NOT have access to AI personalities,
+      // skip fetching and clear any existing personalities. This prevents the dropdown from
+      // showing up or making requests for users who don't have access.
+      if (user.has_ai_personalities_access === false) {
+        setPersonalities([]);
+        setUserPreferences([]);
+        setSelectedPersonality(null);
+        setIsLoading(false);
+        return;
+      }
+
       loadPersonalities();
     } else {
       // User is not authenticated, clear data and set loading to false

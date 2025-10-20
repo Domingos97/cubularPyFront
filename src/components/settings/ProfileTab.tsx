@@ -15,7 +15,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchEnabledLanguages, updateUserLanguagePreference, updateUserProfile } from '@/utils/api';
+import { fetchEnabledLanguages, updateUserLanguagePreference, updateUserProfile, authenticatedFetch } from '@/utils/api';
+import { buildApiUrl } from '@/config';
 import type { SupportedLanguage } from '@/types/language';
 import { UserIcon, Camera, Languages } from 'lucide-react';
 
@@ -168,11 +169,58 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
   };
 
   const handleAvatarChange = () => {
-    // TODO: Implement avatar upload
-    toast({
-      title: t('settings.profile.comingSoon'),
-      description: t('settings.profile.avatarUploadSoon'),
-    });
+    // trigger file input click
+    const input = document.getElementById('avatar-file-input') as HTMLInputElement | null;
+    input?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    // Client-side validation
+    const maxBytes = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxBytes) {
+      toast({ title: t('settings.profile.updateError'), description: t('settings.profile.avatarFileTooLarge') || 'File too large', variant: 'destructive' });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({ title: t('settings.profile.updateError'), description: t('settings.profile.avatarInvalidType') || 'Invalid file type', variant: 'destructive' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+
+      // Upload to API endpoint
+      const resp = await authenticatedFetch(buildApiUrl('/users/me/avatar'), {
+        method: 'POST',
+        body: form
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `Upload failed: ${resp.status}`);
+      }
+
+      const data = await resp.json();
+
+      // Update local user state
+      if (data?.avatar && user) {
+        updateUser({ avatar: data.avatar });
+      }
+
+      toast({ title: t('settings.profile.profileUpdated'), description: t('settings.profile.avatarUpdateSuccess') });
+    } catch (error: any) {
+      console.error('Avatar upload failed', error);
+      toast({ title: t('settings.profile.updateError'), description: error?.message || t('settings.profile.avatarUploadError'), variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -192,26 +240,21 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
           <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
             <div className="relative group">
               <Avatar className="h-20 w-20 mb-4 md:mb-0">
-                <AvatarImage src="/placeholder.svg" alt="Profile" />
+                <AvatarImage src={user?.avatar || '/placeholder.svg'} alt="Profile" />
                 <AvatarFallback className="bg-blue-600 text-white text-lg">
                   {name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 
                    email ? email[0].toUpperCase() : 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer mb-4 md:mb-0">
-                <Camera className="h-6 w-6 text-white" />
+                <Camera className="h-6 w-6 text-white" onClick={handleAvatarChange} />
               </div>
             </div>
             <div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="text-gray-300 border-gray-600 hover:bg-gray-700"
-                onClick={handleAvatarChange}
-              >
-                <Camera className="h-4 w-4 mr-2" />
-                {t('settings.profile.changeAvatar')}
-              </Button>
+
+              {/* hidden file input for avatar upload */}
+              <input id="avatar-file-input" type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+
               <p className="text-xs text-gray-500 mt-2">
                 {t('settings.profile.avatarFileInfo')}
               </p>
@@ -252,37 +295,6 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
               </div>
             </div>
 
-            {/* User Role */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
-              <Label className="md:text-right text-gray-300 font-medium">
-                Account Role
-              </Label>
-              <div className="md:col-span-3">
-                <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-200">
-                  <span className="capitalize">{user?.role || 'User'}</span>
-                  {user?.role === 'admin' && (
-                    <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded">
-                      Administrator
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* User ID */}
-            {user?.id && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
-                <Label className="md:text-right text-gray-300 font-medium">
-                  User ID
-                </Label>
-                <div className="md:col-span-3">
-                  <div className="bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-200 font-mono text-sm">
-                    {user.id}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Account Created */}
             {user?.created_at && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-center">
@@ -301,27 +313,6 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-start">
-              <Label htmlFor="timezone" className="md:text-right text-gray-300 font-medium md:pt-2">
-                {t('settings.profile.timezone')}
-              </Label>
-              <div className="md:col-span-3">
-                <select 
-                  id="timezone"
-                  className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 text-gray-200 rounded-md focus:border-blue-500 focus:outline-none"
-                  defaultValue="America/New_York"
-                >
-                  <option value="America/New_York">Eastern Time (ET)</option>
-                  <option value="America/Chicago">Central Time (CT)</option>
-                  <option value="America/Denver">Mountain Time (MT)</option>
-                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                  <option value="UTC">UTC</option>
-                  <option value="Europe/London">London (GMT)</option>
-                  <option value="Europe/Paris">Paris (CET)</option>
-                  <option value="Asia/Tokyo">Tokyo (JST)</option>
-                </select>
-              </div>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-y-4 md:gap-x-4 items-start">
               <Label htmlFor="language" className="md:text-right text-gray-300 font-medium md:pt-2">

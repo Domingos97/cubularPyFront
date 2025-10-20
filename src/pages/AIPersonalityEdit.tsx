@@ -261,44 +261,24 @@ const AIPersonalityEdit = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[calc(100vh-20rem)]">
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-full">
-                  {/* Suggestions Prompt */}
-                  <div className="flex flex-col h-full">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <FileText className="w-4 h-4 text-blue-400" />
-                      <Label htmlFor="suggestions_prompt" className="text-gray-300 font-medium text-base">
-                        Suggestions Prompt
-                      </Label>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-4">
-                      This prompt guides how the AI generates suggestions and recommendations
-                    </p>
-                    <Textarea 
-                      id="suggestions_prompt" 
-                      value={formData.suggestions_prompt} 
-                      onChange={(e) => updateFormData('suggestions_prompt', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500 font-mono text-sm resize-none flex-1 min-h-0"
-                      placeholder="Enter the prompt that will guide suggestion generation..."
-                    />
-                  </div>
-
-                  {/* Detailed Analysis Prompt */}
+                <div className="grid grid-cols-1 gap-6 h-full">
+                  {/* Detailed Analysis Prompt (full width) */}
                   <div className="flex flex-col h-full">
                     <div className="flex items-center space-x-2 mb-3">
                       <FileText className="w-4 h-4 text-green-400" />
                       <Label htmlFor="detailed_analysis_prompt" className="text-gray-300 font-medium text-base">
-                        Detailed Analysis Prompt
+                        {t('personality.detailedAnalysis') || 'Detailed Analysis'}
                       </Label>
                     </div>
                     <p className="text-sm text-gray-400 mb-4">
-                      This prompt guides how the AI performs detailed analysis of survey data
+                      {t('personality.detailedAnalysisPlaceholder') || 'This prompt guides how the AI performs detailed analysis of survey data'}
                     </p>
                     <Textarea 
                       id="detailed_analysis_prompt" 
                       value={formData.detailed_analysis_prompt} 
                       onChange={(e) => updateFormData('detailed_analysis_prompt', e.target.value)}
                       className="bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500 font-mono text-sm resize-none flex-1 min-h-0"
-                      placeholder="Enter the prompt that will guide detailed analysis..."
+                      placeholder={t('personality.detailedAnalysisPlaceholder') || 'Enter the prompt that will guide detailed analysis...'}
                     />
                   </div>
                 </div>

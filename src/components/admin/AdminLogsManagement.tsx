@@ -359,7 +359,7 @@ const AdminLogsManagement = () => {
           </div>
 
           {/* Table */}
-          <div className="rounded-md border border-gray-700 overflow-hidden">
+          <div className="rounded-md border border-gray-700 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-gray-700 hover:bg-gray-700/20">
@@ -408,7 +408,7 @@ const AdminLogsManagement = () => {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-gray-300 font-mono text-sm max-w-xs truncate">
+                      <TableCell className="text-gray-300 font-mono text-sm table-cell-truncate">
                         {log.endpoint || log.action}
                       </TableCell>
                       <TableCell className="text-gray-300">

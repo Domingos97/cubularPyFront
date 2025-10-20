@@ -12,7 +12,6 @@ import { API_CONFIG, buildApiUrl } from '@/config';
 
 // New modular components
 import { ChatComponent } from "@/components/survey-results/ChatComponent";
-import { PreChatSetupModal } from "@/components/chat/PreChatSetupModal";
 
 const Index = () => {
   // State management
@@ -22,7 +21,7 @@ const Index = () => {
   const [selectedPersonalityId, setSelectedPersonalityId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showPreChatModal, setShowPreChatModal] = useState(false);
+  // No modal: we now start chats directly from the UI
 
   // Track loading sessions to prevent duplicates
   const loadingSessionsRef = useRef<Set<string>>(new Set());
@@ -149,7 +148,29 @@ const Index = () => {
     // Clear any previous state
     setSelectedSurvey(survey);
     setSearchTerm(survey ? `${survey.category} - ${survey.filename || survey.id}` : '');
-    
+    // If there's no active session in the URL, trigger the new-chat flow so
+    // the ChatComponent displays the suggestion messages for the selected survey.
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.get('session')) {
+        // Defer dispatching the global `startNewChat` event to the next
+        // tick so that the parent state update for `selectedSurvey` has
+        // a chance to propagate to child components. Include the surveyId
+        // in the event detail so listeners can load suggestions immediately
+        // even if props haven't propagated yet.
+        setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent('startNewChat', { detail: { surveyId: survey?.id } }));
+          } catch (e) {
+            // Fallback to simple dispatch if CustomEvent can't be constructed
+            window.dispatchEvent(new CustomEvent('startNewChat'));
+          }
+        }, 0);
+      }
+    } catch (err) {
+      console.warn('Index: Failed to dispatch startNewChat event', err);
+    }
+
     setIsLoading(false);
   };
 
@@ -173,20 +194,22 @@ const Index = () => {
   };
 
   const handleNewChat = () => {
-    setShowPreChatModal(true);
+    // Ensure any session query param is removed synchronously so components don't auto-load it again
+    try {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get('session')) {
+        currentUrl.searchParams.delete('session');
+        const newUrl = `${currentUrl.pathname}${currentUrl.searchParams.toString() ? '?' + currentUrl.searchParams.toString() : ''}`;
+        // Synchronously replace browser URL to avoid race with listeners reading location.search
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (err) {
+      console.warn('Failed to remove session param from URL synchronously', err);
+    }
+
+    // Dispatch a global event that chat components listen to and will clear/create session on first message
+    window.dispatchEvent(new CustomEvent('startNewChat'));
   };
-
-  // Listen for custom event from ChatComponent to open new chat modal
-  useEffect(() => {
-    const handleOpenNewChatModal = () => {
-      setShowPreChatModal(true);
-    };
-
-    window.addEventListener('openNewChatModal', handleOpenNewChatModal);
-    return () => {
-      window.removeEventListener('openNewChatModal', handleOpenNewChatModal);
-    };
-  }, []);
 
   const handleChatCreated = (sessionId: string, surveyId: string, selectedFiles: string[]) => {
     // Navigate to the new chat session with pre-selected survey and files
@@ -206,7 +229,7 @@ const Index = () => {
         selectedPersonalityId={selectedPersonalityId}
         onSurveyChange={handleSurveyChange}
         onPersonalityChange={setSelectedPersonalityId}
-        onOpenNewChatModal={() => setShowPreChatModal(true)}
+        onOpenNewChatModal={handleNewChat}
       />
     );
   };
@@ -259,14 +282,7 @@ const Index = () => {
         </main>
       </div>
       
-      {/* Pre-Chat Setup Modal */}
-      <PreChatSetupModal
-        isOpen={showPreChatModal}
-        onClose={() => setShowPreChatModal(false)}
-        onChatCreated={handleChatCreated}
-        initialSurvey={selectedSurvey}
-        selectedPersonalityId={selectedPersonalityId}
-      />
+      {/* Pre-chat modal removed — chat is started directly. Components listen for 'startNewChat' events. */}
     </div>
   );
 };

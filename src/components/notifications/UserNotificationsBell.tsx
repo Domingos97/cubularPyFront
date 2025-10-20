@@ -198,7 +198,7 @@ const UserNotificationsBell = () => {
       setIsOpen(false);
       
       // Navigate to settings with notifications tab active
-      navigate('/settings?tab=notifications');
+      navigate('/Contact');
       
     } catch (error) {
       toast({

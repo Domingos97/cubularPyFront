@@ -261,17 +261,17 @@ const Admin = () => {
         )}
 
         {/* Two Panel Layout */}
-        <div className="flex gap-6 h-[calc(100vh-10rem)]">
+        <div className="flex gap-6 h-[calc(100vh-10rem)] max-w-full overflow-hidden">
           {/* Left Panel - Admin Options */}
-          <div className="w-80 flex-shrink-0">
-            <Card className="bg-gray-800/80 border-gray-700 h-full">
-              <CardHeader>
+          <div className="w-80 min-w-[18rem] max-w-[22rem] flex-shrink-0">
+            <Card className="bg-gray-800/80 border-gray-700 h-full flex flex-col overflow-hidden">
+              <CardHeader className="flex-shrink-0">
                 <CardTitle className="text-white text-lg">Admin Functions</CardTitle>
                 <CardDescription className="text-gray-400">
                   Select an option to manage
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2 overflow-auto pr-2">
                 {adminSections.map((section) => {
                   const IconComponent = section.icon;
                   const isActive = activeSection === section.id;
@@ -300,9 +300,9 @@ const Admin = () => {
           </div>
 
           {/* Right Panel - Content Area */}
-          <div className="flex-1">
-            <Card className="bg-gray-800/80 border-gray-700 h-full">
-              <CardHeader>
+          <div className="flex-1 min-w-0">
+            <Card className="bg-gray-800/80 border-gray-700 h-full flex flex-col">
+              <CardHeader className="flex-shrink-0">
                 <CardTitle className="text-white text-lg flex items-center space-x-2">
                   {(() => {
                     const activeConfig = adminSections.find(s => s.id === activeSection);
@@ -319,7 +319,7 @@ const Admin = () => {
                   {adminSections.find(s => s.id === activeSection)?.description || 'Choose an admin function from the left panel'}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="h-[calc(100%-5rem)] overflow-auto">
+              <CardContent className="flex-1 overflow-auto min-h-0 p-4">
                 {activeSection === 'dashboard' ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">

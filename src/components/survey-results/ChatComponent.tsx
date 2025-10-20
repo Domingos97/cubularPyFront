@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -44,26 +44,89 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   onOpenNewChatModal
 }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Messages are derived from the single source-of-truth in the chat sessions store
   const [inputMessage, setInputMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [clickedSuggestion, setClickedSuggestion] = useState<string | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [pendingNewChat, setPendingNewChat] = useState(false);
   const [showDataInline, setShowDataInline] = useState<boolean>(false); // false = panel mode, true = inline mode
 
   // Use ref to track personality updates and prevent loops
   const lastSessionPersonalityRef = useRef<string | null>(null);
   // Use ref to track failed survey loads and prevent infinite retry loops
   const failedSurveyLoadsRef = useRef<Set<string>>(new Set());
+  // Use ref to indicate we're preparing a new chat so sessionCleared doesn't
+  // accidentally hide the suggestions immediately after startNewChat.
+  const preparingNewChatRef = useRef<boolean>(false);
 
   const isMobile = useIsMobile();
   const { t } = useTranslation();
   const { chatSessions, currentSession, currentMessages, setCurrentMessages, saveMessage, loadSession, createNewSession, isLoadingSession, loadChatSessions, clearCurrentSession, clearAllSessions } = useChatSessions();
 
+  // Map store messages into the UI-friendly Message shape and parse snapshots/confidence
+  const mappedMessages: Message[] = useMemo(() => {
+    if (!currentMessages || currentMessages.length === 0) return [];
+    return currentMessages.map((msg, index) => {
+      // Parse data_snapshot - handle both string and object formats
+      let parsedDataSnapshot = null;
+      if ((msg as any).data_snapshot) {
+        if (typeof (msg as any).data_snapshot === 'string') {
+          const snapshotStr = (msg as any).data_snapshot as string;
+          const trimmedSnapshot = snapshotStr.trim();
+          if (trimmedSnapshot) {
+            try {
+              parsedDataSnapshot = JSON.parse(trimmedSnapshot);
+            } catch (e) {
+              console.warn(`Failed to parse data_snapshot string for message ${index}:`, e);
+            }
+          }
+        } else if (typeof (msg as any).data_snapshot === 'object') {
+          parsedDataSnapshot = (msg as any).data_snapshot;
+        }
+      }
+
+      // Parse confidence - handle both string, number, and object formats
+      let parsedConfidence = null;
+      if ((msg as any).confidence !== null && (msg as any).confidence !== undefined) {
+        if (typeof (msg as any).confidence === 'string') {
+          const confidenceStr = (msg as any).confidence as string;
+          const trimmedConfidence = confidenceStr.trim();
+          if (trimmedConfidence) {
+            try {
+              parsedConfidence = JSON.parse(trimmedConfidence);
+            } catch (e) {
+              console.warn(`Failed to parse confidence string for message ${index}:`, e);
+            }
+          }
+        } else if (typeof (msg as any).confidence === 'number') {
+          parsedConfidence = {
+            score: (msg as any).confidence,
+            reliability: (msg as any).confidence > 0.8 ? 'high' : (msg as any).confidence > 0.5 ? 'medium' : 'low'
+          } as const;
+        } else if (typeof (msg as any).confidence === 'object') {
+          parsedConfidence = (msg as any).confidence;
+        }
+      }
+
+      return {
+        id: msg.id,
+        content: (msg as any).content,
+        sender: (msg as any).sender as 'user' | 'assistant',
+        timestamp: new Date((msg as any).timestamp || Date.now()),
+        dataSnapshot: parsedDataSnapshot,
+        confidence: parsedConfidence
+      };
+    });
+  }, [currentMessages]);
+
   // Debug current user
   const { user } = useAuth();
+
+  // Stable handler for closing the message details panel to avoid passing inline functions
+  const handleCloseMessagePanel = React.useCallback(() => setSelectedMessage(null), []);
 
   // Load suggestions when component mounts or survey changes
   useEffect(() => {
@@ -72,66 +135,79 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
     }
   }, [selectedSurvey?.id, selectedPersonalityId]);
 
-  // Always update messages when currentSession or currentMessages change
+  // Listen for global startNewChat event: clear current session and preload accessible files
   useEffect(() => {
-    if (currentSession?.id && currentMessages.length >= 0) {
-      const mappedMessages = currentMessages.map((msg, index) => {
-        // Parse data_snapshot - handle both string and object formats
-        let parsedDataSnapshot = null;
-        if (msg.data_snapshot) {
-          if (typeof msg.data_snapshot === 'string') {
-            const snapshotStr = msg.data_snapshot as string;
-            const trimmedSnapshot = snapshotStr.trim();
-            if (trimmedSnapshot) {
-              try {
-                parsedDataSnapshot = JSON.parse(trimmedSnapshot);
-              } catch (e) {
-                console.warn(`Failed to parse data_snapshot string for message ${index}:`, e);
-              }
-            }
-          } else if (typeof msg.data_snapshot === 'object') {
-            parsedDataSnapshot = msg.data_snapshot;
-          }
+    const handleStartNewChat = async (ev?: Event) => {
+      console.log('ChatComponent: startNewChat event received - preparing new chat');
+      // If the event includes a surveyId in detail, proactively load suggestions
+      try {
+        const anyEv = ev as any;
+        const detailSurveyId = anyEv?.detail?.surveyId;
+        if (detailSurveyId) {
+          // Load suggestions for the provided survey id immediately
+          loadSuggestions(detailSurveyId).catch(err => console.warn('ChatComponent: failed to load suggestions from event detail', err));
         }
-        
-        // Parse confidence - handle both string, number, and object formats
-        let parsedConfidence = null;
-        if (msg.confidence !== null && msg.confidence !== undefined) {
-          if (typeof msg.confidence === 'string') {
-            const confidenceStr = msg.confidence as string;
-            const trimmedConfidence = confidenceStr.trim();
-            if (trimmedConfidence) {
-              try {
-                parsedConfidence = JSON.parse(trimmedConfidence);
-              } catch (e) {
-                console.warn(`Failed to parse confidence string for message ${index}:`, e);
-              }
+      } catch (e) {
+        // ignore
+      }
+      // Mark that we're preparing a new chat so sessionCleared handler knows
+      // this clear is intentional and shouldn't cancel the pending new-chat UI.
+      preparingNewChatRef.current = true;
+      // Defer clearing store state to avoid nested synchronous updates that can cause
+      // React's "Maximum update depth exceeded" when subscribers also trigger store writes.
+      setTimeout(() => {
+        clearCurrentSession();
+        // Reset the preparing flag shortly after clearing; sessionCleared will
+        // be dispatched by the store and the handler below will consult the flag.
+        setTimeout(() => { preparingNewChatRef.current = false; }, 500);
+      }, 0);
+      setSelectedMessage(null);
+      setSelectedFiles([]);
+      setPendingNewChat(true);
+
+      // Preload accessible processed files for the selected survey (if any)
+      if (selectedSurvey?.id) {
+        try {
+          const res = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.ACCESS_CHECK(selectedSurvey.id)));
+          if (res.ok) {
+            const data = await res.json();
+            const accessibleFiles = data.accessibleFiles || [];
+            const processedIds = accessibleFiles.filter((f: any) => f.isProcessed).map((f: any) => f.id);
+            if (processedIds.length) {
+              setSelectedFiles(processedIds);
+              console.log(`ChatComponent: Preloaded ${processedIds.length} processed files for new chat`);
             }
-          } else if (typeof msg.confidence === 'number') {
-            parsedConfidence = { 
-              score: msg.confidence, 
-              reliability: msg.confidence > 0.8 ? 'high' : msg.confidence > 0.5 ? 'medium' : 'low'
-            } as const;
-          } else if (typeof msg.confidence === 'object') {
-            parsedConfidence = msg.confidence;
+          } else {
+            console.warn('ChatComponent: access-check returned non-ok when preloading files for new chat');
           }
+        } catch (err) {
+          console.error('ChatComponent: Failed to preload files for new chat', err);
         }
-        
-        return {
-          id: msg.id,
-          content: msg.content,
-          sender: msg.sender as 'user' | 'assistant',
-          timestamp: new Date(msg.timestamp),
-          dataSnapshot: parsedDataSnapshot,
-          confidence: parsedConfidence
-        };
-      });
-      
-      setMessages(mappedMessages);
-    } else {
-      setMessages([]);
-    }
-  }, [currentSession?.id, currentMessages]);
+      }
+    };
+
+    window.addEventListener('startNewChat', handleStartNewChat as EventListener);
+    return () => window.removeEventListener('startNewChat', handleStartNewChat as EventListener);
+  }, [selectedSurvey?.id, clearCurrentSession]);
+
+  // Also ensure URL session param is removed when preparing a new chat
+  useEffect(() => {
+    const handleOpenNewChatParam = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('session')) {
+        urlParams.delete('session');
+        const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`;
+        window.history.replaceState({}, '', newUrl);
+        console.log('ChatComponent: Removed session param from URL during new chat prep');
+      }
+    };
+
+    window.addEventListener('startNewChat', handleOpenNewChatParam as EventListener);
+    return () => window.removeEventListener('startNewChat', handleOpenNewChatParam as EventListener);
+  }, []);
+
+  // Always update messages when currentSession or currentMessages change
+  // mappedMessages is derived above via useMemo
 
   // Clear selected message when switching between chat sessions
   useEffect(() => {
@@ -160,7 +236,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         // Load survey data to update the selected survey
         const loadSurveyFromSession = async () => {
           try {
-            const surveyRes = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${sessionSurveyId}`));
+            const surveyRes = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(sessionSurveyId)));
             if (surveyRes.ok) {
               const surveyData = await surveyRes.json();
               onSurveyChange(surveyData);
@@ -200,12 +276,39 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   // Handle session deletion - clear UI state when session becomes null
   useEffect(() => {
     if (!currentSession) {
-      setMessages([]);
+      // Defer clearing session via the store (store.clearCurrentSession already clears messages)
+      setTimeout(() => {
+        clearCurrentSession();
+      }, 0);
       setSelectedMessage(null);
       setSelectedFiles([]);
       console.log('ChatComponent: Session cleared, resetting UI state');
     }
   }, [currentSession]);
+
+  // Listen for global sessionCleared events to ensure UI resets even if another component cleared the session
+  useEffect(() => {
+    const handleSessionCleared = () => {
+      console.log('ChatComponent: sessionCleared event received, resetting UI state');
+      // Only reset local UI state here. Do NOT call clearCurrentSession() again
+      // because the store already issued the sessionCleared event and doing so
+      // would re-dispatch and cause an infinite loop.
+      setSelectedMessage(null);
+      setSelectedFiles([]);
+      // If we are currently preparing a new chat (startNewChat triggered the clear),
+      // keep pendingNewChat true so the suggestions UI remains visible. Otherwise
+      // clear pendingNewChat as before.
+      if (preparingNewChatRef.current) {
+        console.log('ChatComponent: sessionCleared from preparingNewChat - keeping pendingNewChat true');
+        // leave pendingNewChat as-is (true)
+        return;
+      }
+      setPendingNewChat(false);
+    };
+
+    window.addEventListener('sessionCleared', handleSessionCleared as EventListener);
+    return () => window.removeEventListener('sessionCleared', handleSessionCleared as EventListener);
+  }, []);
 
   // Clear selected message when switching to inline mode
   useEffect(() => {
@@ -217,7 +320,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   const loadSuggestions = async (surveyId: string) => {
     try {
       // Use GET request to fetch existing suggestions instead of generating new ones
-      const response = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${surveyId}`), {
+            const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'GET'
       });
       
@@ -259,14 +362,14 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       }
 
 
-      // Add user message to local UI state immediately for responsiveness
+      // Add user message to central store immediately for responsiveness (optimistic)
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         content,
         sender: "user",
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, userMessage]);
+      try { setCurrentMessages([...(currentMessages || []), userMessage as any]); } catch (e) { /* noop */ }
 
       // Add typing indicator
       const typingMessage: Message = {
@@ -275,7 +378,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         sender: "assistant",
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, typingMessage]);
+      try { setCurrentMessages([...(currentMessages || []), typingMessage as any]); } catch (e) { /* noop */ }
 
       // Call backend API for AI analysis with sessionId
       const chatRequestBody: any = {
@@ -335,8 +438,13 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       };
 
 
-      // Remove typing indicator and add response to local UI
-      setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([assistantResponse]));
+      // Remove typing indicator and add response to central store
+      try {
+        const filtered = (currentMessages || []).filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
+        setCurrentMessages(filtered.concat([assistantResponse as any]));
+      } catch (e) {
+        console.warn('ChatComponent: failed to update central messages after assistant response', e);
+      }
 
       // Messages are automatically saved by the backend API (surveys/semantic-chat endpoint)
       // No need to save them manually here to avoid duplication
@@ -345,19 +453,25 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       setInputMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      // Remove typing indicator and show error in local UI
-      setMessages(prev => prev.filter(msg => !msg.content.includes(t('surveyResults.chat.aiThinking'))).concat([{
-        id: `error-${Date.now()}`,
-        content: t('surveyResults.chat.errorOccurred'),
-        sender: "assistant",
-        timestamp: new Date()
-      }]));
+      // Remove typing indicator and show error in central store UI
+      try {
+        const filtered = (currentMessages || []).filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
+        setCurrentMessages(filtered.concat([{
+          id: `error-${Date.now()}`,
+          content: t('surveyResults.chat.errorOccurred'),
+          sender: "assistant",
+          timestamp: new Date()
+        } as any]));
+      } catch (e) {
+        console.warn('ChatComponent: failed to update central messages with error', e);
+      }
 
       // Still log the user message attempt for debugging
       console.log('⚠️ Chat API failed, but messages will be handled by error recovery logic');
     } finally {
       setIsSending(false);
       setClickedSuggestion(null);
+      setPendingNewChat(false);
     }
   };
 
@@ -378,7 +492,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       {!showDataInline && (
         <MessageDetailsPanel
           isOpen={selectedMessage !== null}
-          onClose={() => setSelectedMessage(null)}
+          onClose={handleCloseMessagePanel}
           dataSnapshot={selectedMessage?.dataSnapshot}
           confidence={selectedMessage?.confidence}
           messageContent={selectedMessage?.content || ''}
@@ -403,10 +517,26 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         context="ai_chat_integration" // Filter out survey builder personality
         // No categoryFilter - let it show all sessions for the selected survey except survey_builder (will be handled in ChatSidebar)
         onNewChat={async (sessionId) => {
-          await loadSession(sessionId);
-          // Reload sessions to show the new one (only if we have a survey selected)
-          if (selectedSurvey?.id) {
-            loadChatSessions(selectedSurvey.id);
+          // Sidebar may signal a 'pending' new-chat flow before a real session id exists.
+          // In that case, do not attempt to load a session called 'pending'. Instead
+          // mark the UI as a pending new chat so suggestions are shown and session
+          // creation will happen on first message send.
+          if (sessionId === 'pending') {
+            setPendingNewChat(true);
+            // Ensure we have the latest sessions list for the selected survey
+            if (selectedSurvey?.id) {
+              try { loadChatSessions(selectedSurvey.id); } catch (e) { /* ignore */ }
+            }
+            return;
+          }
+          try {
+            await loadSession(sessionId);
+            // Reload sessions to show the new one (only if we have a survey selected)
+            if (selectedSurvey?.id) {
+              loadChatSessions(selectedSurvey.id);
+            }
+          } catch (err) {
+            console.error('ChatComponent: failed to load session from onNewChat', err);
           }
         }}
         onChatSelect={async (sessionId) => {
@@ -423,7 +553,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                   !failedSurveyLoadsRef.current.has(sessionData.session.survey_ids[0])) {
                 // Load survey data to update the selected survey
                 try {
-                  const surveyRes = await authenticatedFetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.BASE}/${sessionData.session.survey_ids[0]}`));
+                  const surveyRes = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(sessionData.session.survey_ids[0])));
                   if (surveyRes.ok) {
                     const surveyData = await surveyRes.json();
                     onSurveyChange(surveyData);
@@ -501,43 +631,80 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
               </div>
             </div>
           ) : !currentSession ? (
-            <div className="flex flex-col items-center justify-center h-full space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  {chatSessions.length === 0 
-                    ? (selectedSurvey 
-                        ? `No chats yet for this survey`
-                        : `No chat sessions found`)
-                    : `Select a chat to continue`
-                  }
-                </h3>
-                <p className="text-gray-400 mb-6">
-                  {chatSessions.length === 0 
-                    ? (selectedSurvey 
-                        ? `Start your first conversation to analyze "${selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id}"`
-                        : `Create a new chat session to get started with AI-powered survey analysis`)
-                    : `Choose a chat session from the sidebar or create a new one`
-                  }
-                </p>
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    if (onOpenNewChatModal) {
-                      onOpenNewChatModal();
-                    } else {
-                      // Fallback to custom event if callback not provided
-                      const event = new CustomEvent('openNewChatModal');
-                      window.dispatchEvent(event);
-                    }
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  {chatSessions.length === 0 ? 'Create First Chat' : 'Create New Chat'}
-                </Button>
+            // If user started a new chat flow (pending), show the suggestions panel
+            // so they can click a suggested question and create the session on send.
+            pendingNewChat ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-6">
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-white mb-2">{t('surveyResults.chat.chatAbout', { category: selectedSurvey?.category })}</h3>
+                  <p className="text-gray-400 mb-4">{t('surveyResults.chat.description')}</p>
+                </div>
+
+                {/* Suggestions in center when starting a new chat */}
+                {suggestions.length > 0 && (
+                  <div className="w-full max-w-2xl">
+                    <p className="text-gray-400 text-xs mb-4 text-center">{t('surveyResults.chat.tryAsking')}:</p>
+                    <div className="flex flex-col gap-3">
+                      {suggestions.map((question, index) => (
+                        <Button 
+                          key={index}
+                          variant="outline" 
+                          className={`bg-gray-900 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white text-xs md:text-sm py-3 h-auto rounded-lg px-4 shadow-sm text-left justify-start min-h-[48px] w-full whitespace-normal break-words leading-relaxed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                            isSending && clickedSuggestion === question 
+                              ? 'bg-blue-900/50 border-blue-600 text-blue-300 cursor-not-allowed' 
+                              : isSending 
+                              ? 'opacity-50 cursor-not-allowed' 
+                              : ''
+                          }`}
+                          onClick={() => handleSendMessage(question, true)}
+                          disabled={isSending}
+                        >
+                          {isSending && clickedSuggestion === question ? (
+                            <div className="flex items-center gap-3">
+                              <ThinkingCube size="sm" />
+                              <span>{t('surveyResults.chat.analyzing')}</span>
+                            </div>
+                          ) : (
+                            question
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <p className="text-gray-400 text-sm">{t('surveyResults.chat.noMessagesYet')}</p>
+                  <p className="text-gray-500 text-xs mt-1">{t('surveyResults.chat.startConversation')}</p>
+                </div>
               </div>
-            </div>
-          ) : messages.length === 0 ? (
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full space-y-6">
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    {chatSessions.length === 0 
+                      ? (selectedSurvey 
+                          ? `No chats yet for this survey`
+                          : `No chat sessions found`)
+                      : `Select a chat to continue`
+                    }
+                  </h3>
+                  <p className="text-gray-400 mb-6">
+                    {chatSessions.length === 0 
+                      ? (selectedSurvey 
+                          ? `Start your first conversation to analyze "${selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id}"`
+                          : `Create a new chat session to get started with AI-powered survey analysis`)
+                      : `Choose a chat session from the sidebar or create a new one`
+                    }
+                  </p>
+                  {/* The "Create New Chat" button was removed from the central chat UI.
+                      Use the sidebar "+ new chat" control which dispatches the
+                      `startNewChat` event to prepare a new chat and show suggestions
+                      for the currently selected survey. */}
+                </div>
+              </div>
+            )
+          ) : mappedMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full space-y-6">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-white mb-2">
@@ -593,7 +760,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
           ) : (
             // Regular messages display
             <div className="space-y-4">
-              {messages.map((message) => (
+              {mappedMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex ${message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 max-w-[85%]`}>
                     {/* Avatar */}

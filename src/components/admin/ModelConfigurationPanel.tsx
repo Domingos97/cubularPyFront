@@ -201,12 +201,15 @@ export const ModelConfigurationPanel = () => {
       
       if (existingConfig) {
         // Use existing configuration from database
+        // The backend returns only llm_setting_id (no nested llm_settings), so resolve provider from loaded llmSettings
+        const providerFromSetting = getLlmSettingById(existingConfig.llm_setting_id || '')?.provider || 'openai';
+        const normalizedModel = findBestModelForProvider(providerFromSetting, module.name, existingConfig.model);
 
         newFormData[module.name] = {
           ...existingConfig,
-          // Provider comes from llm_settings, model comes from module_configurations
-          provider: existingConfig.llm_settings?.provider || 'openai',
-          model: existingConfig.model || getDefaultModelForModule(module.name),
+          // Provider comes from the linked LLM setting, model comes from module_configurations
+          provider: providerFromSetting,
+          model: normalizedModel || getDefaultModelForModule(module.name),
           // Ensure ai_personality_id uses 'none' for display if null/undefined
           ai_personality_id: existingConfig.ai_personality_id || 'none'
         };
@@ -249,6 +252,16 @@ export const ModelConfigurationPanel = () => {
   const getAvailableProviders = (): string[] => {
     const providers = [...new Set(llmSettings.map(setting => setting.provider))];
     return providers.sort();
+  };
+
+  // Get providers to show for a specific module (hide openrouter for semantic search since it
+  // doesn't provide native embeddings in our config)
+  const getProvidersForModule = (moduleName: string): string[] => {
+    const providers = getAvailableProviders();
+    if (moduleName === 'semantic_search_engine') {
+      return providers.filter(p => p !== 'openrouter');
+    }
+    return providers;
   };
 
   // Hardcoded model lists per provider
@@ -341,6 +354,43 @@ export const ModelConfigurationPanel = () => {
     }
   };
 
+  // Helpers to handle mixed model naming formats (e.g. "openai/gpt-4o-mini" vs "gpt-4o-mini")
+  const splitModelString = (modelStr?: string) => {
+    if (!modelStr) return { provider: null as string | null, name: '' };
+    const parts = modelStr.split('/');
+    if (parts.length > 1) {
+      return { provider: parts[0], name: parts.slice(1).join('/') };
+    }
+    return { provider: null as string | null, name: modelStr };
+  };
+
+  const findBestModelForProvider = (provider: string, moduleName: string, storedModel?: string) => {
+    const available = getAvailableModels(provider, moduleName) || [];
+    if (!storedModel) return available[0] || '';
+
+    // Exact match first
+    if (available.includes(storedModel)) return storedModel;
+
+    const parsed = splitModelString(storedModel);
+
+    // If storedModel was stored as 'provider/name' and provider matches -> use the name
+    if (parsed.provider && parsed.provider === provider && parsed.name) {
+      // The dropdown for this provider may list either 'name' or 'provider/name'
+      if (available.includes(parsed.name)) return parsed.name;
+      const prefixed = `${parsed.provider}/${parsed.name}`;
+      if (available.includes(prefixed)) return prefixed;
+      return parsed.name;
+    }
+
+    // Try to match by right-most segment: some providers (like openrouter) list entries as 'provider/name'
+    const rightPart = parsed.name || storedModel;
+    const byRight = available.find(m => m.split('/').pop() === rightPart);
+    if (byRight) return byRight;
+
+    // Fallback to stored value (so it still gets saved back) or first available
+    return available[0] || storedModel || '';
+  };
+
   // Find LLM setting ID based on provider (model is now stored separately)
   const findLlmSettingId = (provider: string, model: string): string => {
     // Find setting by provider only since model is no longer in llm_settings
@@ -386,13 +436,10 @@ export const ModelConfigurationPanel = () => {
 
   // Update provider and automatically select appropriate model
   const updateProvider = (moduleName: string, provider: string) => {
-    const availableModels = getAvailableModels(provider, moduleName);
     const currentModel = getCurrentModuleConfig(moduleName).model;
-    
-    // Keep current model if it's available for this provider, otherwise use first available
-    const newModel = availableModels.includes(currentModel) ? currentModel : availableModels[0] || '';
+    const newModel = findBestModelForProvider(provider, moduleName, currentModel);
     const llmSettingId = findLlmSettingId(provider, newModel);
-    
+
     updateFormData(moduleName, 'provider', provider);
     updateFormData(moduleName, 'model', newModel);
     updateFormData(moduleName, 'llm_setting_id', llmSettingId);
@@ -443,23 +490,27 @@ export const ModelConfigurationPanel = () => {
         }
       }
       
+      // Recompute LLM setting id from selected provider/model to ensure provider changes persist
+      const computedLlmSettingId = findLlmSettingId(config.provider || '', config.model || '');
+
       // Check if provider is configured (model doesn't need to be)
       if (!isProviderConfigured(config.provider || '')) {
         throw new Error(`Provider "${config.provider}" is not configured in LLM Settings. Please add this provider first.`);
       }
-      
-      // Ensure we have a valid LLM setting ID and model
-      if (!config.llm_setting_id) {
+
+      // Ensure we have a valid LLM setting ID (computed) and model
+      if (!computedLlmSettingId) {
         throw new Error('Please select a valid AI model configuration.');
       }
-      
+
       if (!config.model) {
         throw new Error('Please select a model.');
       }
-      
+
       const payload = {
         module_name: config.module_name,
-        llm_setting_id: config.llm_setting_id,
+        // Use recomputed llm_setting_id so changing provider updates module configuration
+        llm_setting_id: computedLlmSettingId,
         model: config.model, // Now required field
         temperature: config.temperature,
         max_tokens: config.max_tokens,
@@ -486,6 +537,16 @@ export const ModelConfigurationPanel = () => {
           return [...prev, data];
         }
       });
+
+      // Ensure formData reflects the llm_setting_id (use returned value or computed one)
+      setFormData(prev => ({
+        ...prev,
+        [moduleName]: {
+          ...prev[moduleName],
+          llm_setting_id: data.llm_setting_id || payload.llm_setting_id,
+          model: data.model || payload.model
+        }
+      }));
 
       toast({
         title: t('admin.toast.success'),
@@ -611,7 +672,7 @@ export const ModelConfigurationPanel = () => {
                           <SelectValue placeholder={t('admin.aiModels.selectProvider')} />
                         </SelectTrigger>
                         <SelectContent>
-                          {getAvailableProviders().map((provider) => (
+                          {getProvidersForModule(module.name).map((provider) => (
                             <SelectItem key={provider} value={provider}>
                               <div className="flex items-center justify-between w-full">
                                 <span className="capitalize">{provider}</span>

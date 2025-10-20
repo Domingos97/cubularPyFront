@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
-import { X, Trash2, MessageCircle } from 'lucide-react';
+import { X, Trash2, MessageCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { useChatSessions } from '@/hooks/useChatSessions';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -34,6 +35,10 @@ interface ChatSidebarProps {
 export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatSelect, selectedPersonalityId, onPersonalityChange, selectedFiles, categoryFilter, context = 'all' }: ChatSidebarProps) {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
+  // When a new chat is requested, we temporarily suppress auto-loading the
+  // most recent session so that the UI shows suggestions instead of
+  // immediately loading the last session.
+  const preparingNewChatRef = useRef<boolean>(false);
   const { chatSessions, createNewSession, loadSession, deleteSession, updateSessionSurveys, currentSession, isLoading, isLoadingSession, loadChatSessions, clearCurrentSession, clearAllSessions, currentMessages } = useChatSessions();
   
   // Add filtering logic for chat sessions
@@ -324,7 +329,8 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
     // 3. No current session is active
     // 4. No session ID in URL
     // 5. Not currently loading
-    if (selectedSurvey?.id && filteredChatSessions.length > 0 && !currentSession && !sessionIdFromUrl && !isLoadingSession) {
+    // Do not auto-load if a new chat is being prepared (user clicked New Chat)
+    if (selectedSurvey?.id && filteredChatSessions.length > 0 && !currentSession && !sessionIdFromUrl && !isLoadingSession && !preparingNewChatRef.current) {
       const lastSession = filteredChatSessions[0]; // Most recent filtered session for this survey
       
       if (onChatSelect) {
@@ -334,15 +340,39 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
     }
   }, [selectedSurvey?.id, filteredChatSessions, currentSession, isLoadingSession, onChatSelect, navigate, location.search]);
 
+  // Listen for startNewChat events and temporarily prevent auto-loading
+  useEffect(() => {
+    const handler = () => {
+      preparingNewChatRef.current = true;
+      // Reset after a short period to allow normal auto-load again
+      setTimeout(() => { preparingNewChatRef.current = false; }, 1500);
+    };
+    window.addEventListener('startNewChat', handler as EventListener);
+    return () => window.removeEventListener('startNewChat', handler as EventListener);
+  }, []);
+
   const handleNewChat = async () => {
-    if (selectedSurvey) {
-      console.log('🔍 ChatSidebar: Creating new chat with survey:', selectedSurvey.id, 'category:', selectedSurvey.category);
-      const result = await createNewSession([selectedSurvey], selectedSurvey.category || 'survey-analysis', selectedPersonalityId, selectedFiles);
-      if (result && onNewChat) {
-        onNewChat(result.id);
-        // Reload sessions to show the new one
-        loadChatSessions(selectedSurvey.id);
+    // Instead of creating a session immediately, dispatch an event so the chat UI
+    // prepares a new session and the server-side session will be created when the user
+    // sends the first message (or clicks a suggestion).
+    console.log('🔍 ChatSidebar: Requesting new chat UI (session will be created on first message)');
+    window.dispatchEvent(new CustomEvent('startNewChat'));
+    // Clear the sidebar's current session state so the active session is closed immediately
+    try {
+      clearCurrentSession();
+      // Also remove any session query param from the URL so other components don't auto-load it
+      const newUrl = new URL(window.location.href);
+      if (newUrl.searchParams.get('session')) {
+        newUrl.searchParams.delete('session');
+        navigate(newUrl.pathname + newUrl.search, { replace: true });
       }
+    } catch (err) {
+      console.warn('ChatSidebar: Failed to clear current session during New Chat flow', err);
+    }
+
+    if (onNewChat) {
+      // Notify parent that a new chat flow was requested
+      onNewChat('pending');
     }
   };
 
@@ -354,6 +384,13 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       clearAllSessions();
       // Navigate without session parameter to reset URL
       navigate('/', { replace: true });
+      return;
+    }
+
+    // Handle add new data stream action
+    if (surveyId === "add_new") {
+      // Don't change the selected survey; navigate to settings > notifications (contact page)
+      navigate('/Contact');
       return;
     }
 
@@ -415,12 +452,14 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
         </div>
         
         <div className="mb-4">
-          <PersonalitySelector
-            onPersonalityChange={onPersonalityChange}
-            className="w-full"
-            value={selectedPersonalityId || ''}
-            context={context}
-          />
+          {user?.has_ai_personalities_access ? (
+            <PersonalitySelector
+              onPersonalityChange={onPersonalityChange}
+              className="w-full"
+              value={selectedPersonalityId || ''}
+              context={context}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -430,9 +469,26 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
           <div className="text-xs text-gray-400 uppercase tracking-wide">{t('chatSidebar.selectSurvey')}</div>
           
           <Select value={selectedSurvey?.id || "none"} onValueChange={handleSurveySelect}>
-            <SelectTrigger className="h-8 text-xs bg-gray-900 border-gray-700 text-white">
-              <SelectValue placeholder={t('chatSidebar.chooseSurvey')} />
-            </SelectTrigger>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SelectTrigger className="h-8 text-xs bg-gray-900 border-gray-700 text-white">
+                    <SelectValue placeholder={t('chatSidebar.chooseSurvey')} />
+                  </SelectTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  <div className="text-left text-xs text-gray-100">
+                    {t('chatSidebar.dropdownTooltip.text')}{' '}
+                    <button
+                      className="text-blue-400 underline ml-1"
+                      onClick={(e) => { e.stopPropagation(); navigate('/about'); }}
+                    >
+                      {t('chatSidebar.dropdownTooltip.readMore')}
+                    </button>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <SelectContent className="bg-gray-900 border-gray-700 text-white z-50">
               <SelectItem value="none" className="text-gray-400 hover:bg-gray-800">
                 {t('chatSidebar.noSurveySelected') || 'No survey selected'}
@@ -442,21 +498,24 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                   {survey.title || survey.filename || survey.id}
                 </SelectItem>
               ))}
+              <SelectItem value="add_new" className="text-blue-400 hover:bg-gray-800 font-medium">
+                + Add new Data Stream
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       {/* Chat History */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-4 flex flex-col">
         <div className="text-xs text-gray-400 uppercase tracking-wide mb-3">
           {t('chatSidebar.chatHistory')}
           {selectedSurvey && (
             <span className="text-blue-400 ml-2">({selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id})</span>
           )}
         </div>
-        <ScrollArea className="h-full">
-          <div className="space-y-2">
+        <ScrollArea className="h-full flex-1 relative z-0">
+          <div className="space-y-2 pb-36">
             {isLoading ? (
               <div className="text-xs text-gray-400">{t('chatSidebar.loadingChats')}</div>
             ) : filteredChatSessions.length === 0 ? (
@@ -491,21 +550,21 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                 <div
                   key={session.id}
                   onClick={() => handleChatSelect(session.id)}
-                  className={`flex items-start justify-between p-2 rounded-md cursor-pointer hover:bg-gray-800 transition-colors group ${
+                  className={`relative flex items-center justify-between py-1.5 px-2 rounded-md cursor-pointer hover:bg-gray-800 transition-colors group ${
                     isLoadingSession ? 'opacity-50 pointer-events-none' : ''
                   } ${
                     currentSession?.id === session.id ? 'bg-blue-600/20 border border-blue-500/30' : ''
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-white truncate">
+                    <div className="text-sm font-medium text-white truncate leading-5">
                       {session.title}
                     </div>
-                    <div className="text-xs text-gray-400 truncate">
+                    <div className="text-xs text-gray-400 truncate leading-4">
                       {session.category} • {formatDistanceToNow(new Date(session.created_at), { addSuffix: true })}
                     </div>
                     {sessionPersonality && (
-                      <Badge variant="secondary" className="text-xs mt-1 bg-blue-500/20 text-blue-400 border-blue-500/30">
+                      <Badge variant="secondary" className="text-[11px] mt-1 bg-blue-500/20 text-blue-400 border-blue-500/30 py-0.5 px-2">
                         🤖 {sessionPersonality.name}
                       </Badge>
                     )}
@@ -517,13 +576,13 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                       e.stopPropagation();
                       setMenuSessionId(session.id);
                     }}
-                    className={`h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-blue-400`}
+                    className={`h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-blue-400 ml-2`}
                     title={t('chatSidebar.openMenu')}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                   </Button>
                   {menuSessionId === session.id && (
-                    <div className="absolute z-50 right-8 top-2 bg-gray-900 border border-gray-700 rounded shadow-lg p-3 flex flex-col gap-2 min-w-[140px]">
+                    <div className="absolute z-40 right-2 top-2 bg-gray-900 border border-gray-700 rounded shadow-lg p-3 flex flex-col gap-2 min-w-[140px]">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -603,6 +662,30 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
             )}
           </div>
         </ScrollArea>
+      </div>
+
+      {/* Footer - anchored to bottom */}
+      <div className="sticky bottom-0 z-50 bg-gray-950 p-4 border-t border-gray-800">
+        <div className="flex flex-col items-stretch gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/contact')}
+            className="w-full flex items-center justify-center gap-2 text-gray-200 hover:bg-gray-800"
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span className="text-xs">{t('navigation.contactUs')}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 text-red-400 hover:bg-red-900/20"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="text-xs">{t('navigation.logout')}</span>
+          </Button>
+        </div>
       </div>
 
     </div>
