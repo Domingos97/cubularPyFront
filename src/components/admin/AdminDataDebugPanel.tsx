@@ -17,8 +17,8 @@ export const AdminDataDebugPanel = () => {
     setError(null);
     
     try {
-      console.log(`🔄 Testing ${description}...`);
-      const data = await authenticatedApiRequest(`${buildApiUrl('')}${endpoint}`);
+  console.log(`🔄 Testing ${description}...`);
+  const data = await authenticatedApiRequest(buildApiUrl(endpoint));
       console.log(`✅ ${description} success:`, data);
       
       setDebugData(prev => ({
