@@ -102,6 +102,7 @@ export const API_CONFIG = {
     SURVEY_BUILDER: {
       BASE: '/survey-builder/',
       GENERATED_SURVEYS: '/survey-builder/generated-surveys',
+      GENERATE_SURVEY: '/survey-builder/generate-survey',
       DOWNLOAD_FILE: (fileId: string) => `/survey-builder/download-survey-file/${fileId}`,
       VIEW_FILE: (fileId: string) => `/survey-builder/view-file/${fileId}`,
       CHAT: '/v1/survey-builder/chat',
