@@ -371,20 +371,24 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         timestamp: new Date()
       };
       try {
-        const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
-        setCurrentMessages([...storeMsgs, userMessage as any]);
-      } catch (e) { /* noop */ }
-
-      // Add typing indicator
-      const typingMessage: Message = {
-        id: `typing-${Date.now()}`,
-        content: t('surveyResults.chat.aiThinking'),
-        sender: "assistant",
-        timestamp: new Date()
-      };
-      try {
-        const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
-        setCurrentMessages([...storeMsgs, typingMessage as any]);
+        // When there's no active session (first message / pending new chat),
+        // start optimistic messages from an empty array to avoid leaking
+        // messages from a previously-opened session in the store snapshot.
+  const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
+  // If we're preparing a new chat (startNewChat was triggered) or the UI
+  // is in a pending-new-chat state, do NOT reuse the current store messages
+  // even if `currentSession` hasn't been cleared yet. This prevents the
+  // old session's messages from appearing when the user sends the first
+  // message in a new chat.
+  const isPreparingNewChat = preparingNewChatRef.current || pendingNewChat;
+  const baseMsgs = (currentSession?.id && !isPreparingNewChat) ? storeMsgs : [];
+        const typingMessage: Message = {
+          id: `typing-${Date.now()}`,
+          content: t('surveyResults.chat.aiThinking'),
+          sender: "assistant",
+          timestamp: new Date()
+        };
+        setCurrentMessages([...baseMsgs, userMessage as any, typingMessage as any]);
       } catch (e) { /* noop */ }
 
       // Call backend API for AI analysis with sessionId
@@ -449,7 +453,16 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       try {
         const latestMsgs = (getChatStoreSnapshot().currentMessages) || [];
         const filtered = latestMsgs.filter(msg => !(msg as any).content?.includes(t('surveyResults.chat.aiThinking')));
-        setCurrentMessages(filtered.concat([assistantResponse as any]));
+        // Avoid duplicates: if the backend already saved the assistant message
+        // (which can happen when we loaded the session that was just created),
+        // skip appending an identical message. Compare by id and content.
+        const alreadyExists = filtered.some(msg => (msg as any).id === assistantResponse.id || (msg as any).content === assistantResponse.content);
+        if (!alreadyExists) {
+          setCurrentMessages(filtered.concat([assistantResponse as any]));
+        } else {
+          // Backend-provided message already present; just clear typing indicator.
+          setCurrentMessages(filtered);
+        }
       } catch (e) {
         console.warn('ChatComponent: failed to update central messages after assistant response', e);
       }
