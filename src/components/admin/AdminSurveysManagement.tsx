@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,7 @@ interface AdminSurveysManagementProps {
 export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted }: AdminSurveysManagementProps) => {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [isMultiFileUploadOpen, setIsMultiFileUploadOpen] = useState(false);
   const [isUpdatingStatuses, setIsUpdatingStatuses] = useState(false);
 
@@ -62,7 +64,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
     if (!confirm(t('admin.surveys.confirmDelete'))) return;
 
     try {
-      const res = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${surveyId}`, {
+      const res = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -92,7 +94,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
 
   const handleDownloadSurvey = async (surveyId: string, filename: string) => {
     try {
-      const res = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${surveyId}/download`, {
+      const res = await fetch(buildApiUrl(`${API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)}/download`), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -203,7 +205,7 @@ export const AdminSurveysManagement = ({ surveys, onSurveyAdded, onSurveyDeleted
                     <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700">
                       <DropdownMenuItem 
                         className="text-gray-300 hover:bg-gray-700 cursor-pointer"
-                        onClick={() => window.open(`/admin/survey/${survey.id}`, '_blank')}
+                        onClick={() => navigate(`/admin/survey/${survey.id}`)}
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         {t('admin.surveys.viewDetails')}

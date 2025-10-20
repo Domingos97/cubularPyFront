@@ -292,7 +292,7 @@ const SurveyDetails = () => {
     // Fetch data for the selected file
     setIsLoadingFileData(true);
     try {
-      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.ROWS(survey?.id, fileId)));
+  const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.ROWS(survey?.id, fileId)));
       if (!response.ok) {
         throw new Error('Failed to fetch file data');
       }

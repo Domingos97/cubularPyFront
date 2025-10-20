@@ -357,7 +357,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.GENERATE_SUGGESTIONS)}`, {
+      const response = await fetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SUGGESTIONS(activeSurveyId))}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -429,8 +429,9 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
             };
           }
           
-          const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.GENERATE_SUGGESTIONS)}`, {
+          const response = await authenticatedFetch(`${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.SUGGESTIONS(activeSurveyId))}`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
               personalityId: selectedPersonality,
               fileContent: fileContent,
@@ -459,7 +460,7 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         formData.append('file', file.file);
         
         const response = await authenticatedFetch(
-          `${buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.BASE)}/${activeSurveyId}/files`,
+          buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.FILES.BASE(activeSurveyId)),
           {
             method: 'POST',
             body: formData
