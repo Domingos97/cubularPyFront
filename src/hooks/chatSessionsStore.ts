@@ -173,7 +173,15 @@ export async function loadSession(sessionId: string) {
     const data = await res.json();
     const session = data.session || data;
     const messages = data.messages || [];
-    setState({ currentSession: session, currentMessages: messages });
+    // Ensure the loaded session is present in the chatSessions list so it
+    // appears immediately in the sidebar (useful when the backend created
+    // a session during the first message send).
+    const exists = state.chatSessions.some(s => s.id === session.id);
+    const updatedList = exists
+      ? state.chatSessions.map(s => (s.id === session.id ? session : s))
+      : [session, ...state.chatSessions];
+
+    setState({ currentSession: session, currentMessages: messages, chatSessions: updatedList });
     return { session, messages };
   } catch (err) {
     console.error('chatSessionsStore.loadSession', err);

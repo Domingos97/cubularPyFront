@@ -356,6 +356,11 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
     // prepares a new session and the server-side session will be created when the user
     // sends the first message (or clicks a suggestion).
     console.log('🔍 ChatSidebar: Requesting new chat UI (session will be created on first message)');
+    // Set a short-lived global flag so freshly-mounted components (or those that
+    // missed the startNewChat event) can still detect a pending new-chat flow
+    // and avoid auto-loading the last session. This helps avoid race conditions
+    // when navigating between views.
+    try { (window as any).__cubular_pendingNewChat = true; } catch (e) { /* ignore */ }
     window.dispatchEvent(new CustomEvent('startNewChat'));
     // Clear the sidebar's current session state so the active session is closed immediately
     try {
@@ -374,6 +379,10 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       // Notify parent that a new chat flow was requested
       onNewChat('pending');
     }
+    // Ensure the global pending flag is cleared after a short timeout in case
+    // nobody else clears it (safety net). Real clearing will happen when a
+    // session is created or sessionCleared is dispatched.
+    setTimeout(() => { try { if ((window as any).__cubular_pendingNewChat) (window as any).__cubular_pendingNewChat = false; } catch(e){} }, 5000);
   };
 
   const handleSurveySelect = async (surveyId: string) => {
@@ -444,7 +453,7 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
   };
 
   return (
-    <div className="w-80 bg-gray-950/80 backdrop-blur-sm border-r border-gray-800 flex flex-col h-full">
+  <div className="w-80 bg-gray-950/80 backdrop-blur-sm border-r border-gray-800 flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <div className="mb-4">
@@ -507,15 +516,15 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
       </div>
 
       {/* Chat History */}
-      <div className="flex-1 p-4 flex flex-col">
+  <div className="flex-1 p-4 flex flex-col min-h-0">
         <div className="text-xs text-gray-400 uppercase tracking-wide mb-3">
           {t('chatSidebar.chatHistory')}
           {selectedSurvey && (
             <span className="text-blue-400 ml-2">({selectedSurvey.title || selectedSurvey.filename || selectedSurvey.id})</span>
           )}
         </div>
-        <ScrollArea className="h-full flex-1 relative z-0">
-          <div className="space-y-2 pb-36">
+        <ScrollArea className="flex-1 min-h-0 relative z-0">
+          <div className="space-y-2 pb-16">
             {isLoading ? (
               <div className="text-xs text-gray-400">{t('chatSidebar.loadingChats')}</div>
             ) : filteredChatSessions.length === 0 ? (
@@ -561,13 +570,13 @@ export function ChatSidebar({ selectedSurvey, onSurveyChange, onNewChat, onChatS
                       {session.title}
                     </div>
                     <div className="text-xs text-gray-400 truncate leading-4">
-                      {session.category} • {formatDistanceToNow(new Date(session.created_at), { addSuffix: true })}
+                      {/* Show the first survey title associated with the session (if available) */}
+                      {(() => {
+                        const surveyId = session.survey_ids && session.survey_ids.length > 0 ? session.survey_ids[0] : null;
+                        const survey = surveyId ? surveys.find(s => s.id === surveyId) : null;
+                        return survey ? (survey.title || survey.filename || survey.id) : 'Unknown Survey';
+                      })()}
                     </div>
-                    {sessionPersonality && (
-                      <Badge variant="secondary" className="text-[11px] mt-1 bg-blue-500/20 text-blue-400 border-blue-500/30 py-0.5 px-2">
-                        🤖 {sessionPersonality.name}
-                      </Badge>
-                    )}
                   </div>
                   <Button
                     variant="ghost"

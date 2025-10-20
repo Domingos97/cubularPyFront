@@ -140,6 +140,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   useEffect(() => {
     const handleStartNewChat = async (ev?: Event) => {
       console.log('ChatComponent: startNewChat event received - preparing new chat');
+      try { (window as any).__cubular_pendingNewChat = true; } catch (e) { /* ignore */ }
       // If the event includes a surveyId in detail, proactively load suggestions
       try {
         const anyEv = ev as any;
@@ -376,11 +377,12 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         // messages from a previously-opened session in the store snapshot.
   const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
   // If we're preparing a new chat (startNewChat was triggered) or the UI
-  // is in a pending-new-chat state, do NOT reuse the current store messages
-  // even if `currentSession` hasn't been cleared yet. This prevents the
-  // old session's messages from appearing when the user sends the first
-  // message in a new chat.
-  const isPreparingNewChat = preparingNewChatRef.current || pendingNewChat;
+  // is in a pending-new-chat state, or if the global pending flag is set,
+  // do NOT reuse the current store messages even if `currentSession`
+  // hasn't been cleared yet. This prevents the old session's messages
+  // from appearing when the user sends the first message in a new chat.
+  const globalPending = typeof window !== 'undefined' && !!(window as any).__cubular_pendingNewChat;
+  const isPreparingNewChat = preparingNewChatRef.current || pendingNewChat || globalPending;
   const baseMsgs = (currentSession?.id && !isPreparingNewChat) ? storeMsgs : [];
         const typingMessage: Message = {
           id: `typing-${Date.now()}`,
@@ -392,12 +394,52 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       } catch (e) { /* noop */ }
 
       // Call backend API for AI analysis with sessionId
+      // Compute a session title from the user's first prompt when starting a new session.
+      const computeSessionTitle = (text: string) => {
+        if (!text) return 'New Chat';
+        // Get first non-empty line
+        const firstLine = text.split(/\r?\n/).map(l => l.trim()).find(l => l.length > 0) || text.trim();
+        // Normalize punctuation and split into words
+        const cleaned = firstLine.replace(/["'`\(\)\[\],.!?;:\-\/]+/g, ' ');
+        const rawWords = cleaned.split(/\s+/).filter(Boolean);
+
+        // Common stopwords to remove from short titles
+        const stopwords = new Set([
+          'the','a','an','and','or','of','in','on','for','to','with','about','is','are','it','this','that','these','those','my','our','your','their','be'
+        ]);
+
+        // Prefer meaningful words by filtering stopwords
+        const meaningful = rawWords.filter(w => !stopwords.has(w.toLowerCase()));
+
+        // Take up to 4 words; prefer meaningful words but fall back to raw words
+        const takeWords = (arr: string[], n: number) => arr.slice(0, n);
+        let titleWords: string[] = [];
+        if (meaningful.length >= 3) titleWords = takeWords(meaningful, 4);
+        else if (meaningful.length > 0) titleWords = takeWords(meaningful, 4);
+        else titleWords = takeWords(rawWords, Math.min(4, rawWords.length));
+
+        // If there are still no words (e.g., punctuation-only), fallback to a short prefix
+        if (!titleWords || titleWords.length === 0) {
+          const fallback = firstLine.trim().slice(0, 40);
+          return fallback.length ? fallback : 'New Chat';
+        }
+
+        // Capitalize title words
+        const title = titleWords.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        return title;
+      };
+
       const chatRequestBody: any = {
         question: content,
         surveyIds: surveyIds,
         selectedFileIds: selectedFiles,  // Include selected file IDs
         createSession: true  // Always allow session creation
       };
+
+      // If there's currently no session, include the derived title so backend can create the session with a meaningful name
+      if (!currentSession?.id) {
+        chatRequestBody.title = computeSessionTitle(content);
+      }
 
       console.log('📝 Chat request body:', {
         ...chatRequestBody,
@@ -433,6 +475,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       if (data.sessionId && data.sessionId !== currentSession?.id) {
         await loadSession(data.sessionId);
         sessionForSaving = data.sessionId;
+        try { if ((window as any).__cubular_pendingNewChat) (window as any).__cubular_pendingNewChat = false; } catch (e) { /* ignore */ }
       }
 
       const assistantResponse: Message = {
@@ -494,6 +537,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
       setIsSending(false);
       setClickedSuggestion(null);
       setPendingNewChat(false);
+      try { if ((window as any).__cubular_pendingNewChat) (window as any).__cubular_pendingNewChat = false; } catch (e) { /* ignore */ }
     }
   };
 
