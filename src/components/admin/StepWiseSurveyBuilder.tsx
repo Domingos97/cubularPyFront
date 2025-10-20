@@ -372,7 +372,7 @@ export const StepWiseSurveyBuilder: React.FC<StepWiseSurveyBuilderProps> = ({ on
       console.log('🏗️ Generating survey with structured data:', surveyData);
 
       const response = await authenticatedApiRequest(
-        buildApiUrl(API_CONFIG.ENDPOINTS.SURVEY_BUILDER.GENERATED_SURVEYS), {
+        buildApiUrl(API_CONFIG.ENDPOINTS.SURVEY_BUILDER.GENERATE_SURVEY), {
         method: 'POST',
         body: JSON.stringify(surveyData)
       });
