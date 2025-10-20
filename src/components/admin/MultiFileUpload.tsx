@@ -15,7 +15,6 @@ import { SurveyFile, Survey, CreateSurveyRequest, AddFileToSurveyResponse } from
 import type { AIPersonality } from '@/hooks/usePersonalities';
 import { useTranslation } from '@/resources/i18n';
 import * as XLSX from 'xlsx';
-
 interface MultiFileUploadProps {
   surveyId?: string; // If provided, files will be added to existing survey
   onSurveyCreated?: (survey: Survey) => void;
@@ -66,6 +65,8 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
   const [currentSurveyId, setCurrentSurveyId] = useState(surveyId);
   const [createdSurveyId, setCreatedSurveyId] = useState<string | null>(null);
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const pollTimerRef = React.useRef<number | null>(null);
   const [showCreationForm, setShowCreationForm] = useState(!surveyId); // Show form if no surveyId provided
   
   // Reset form function
@@ -87,6 +88,16 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       setCurrentSurveyId(undefined);
     }
   }, [personalities, surveyId]);
+
+  // Cleanup polling timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Fetch AI personalities on component mount
   React.useEffect(() => {
@@ -405,6 +416,8 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       return;
     }
     
+    // Start upload flow immediately and reset processing state
+    setProcessing(false);
     setUploading(true);
     setError('');
     setProgress(0);
@@ -480,43 +493,112 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
       }
       
       // All files uploaded successfully - processing will happen in background
-      setProgress(100); // Mark upload as complete
-      
-      let successMessage = `Successfully uploaded ${uploadedFiles.length} files`;
-      if (selectedPersonality && description.trim() && category) {
-        successMessage += " and generated AI analysis questions";
-      }
-      successMessage += ". Processing will continue in background.";
-
-      toast({
-        title: "Files Uploaded Successfully",
-        description: successMessage,
-      });
+      // Start the processing phase and begin polling backend for processing status.
+      // The backend converts uploaded files into pickle/embeddings in background; we poll the survey details endpoint
+      // and gently animate progress until processing_status becomes 'completed'.
+      // Do not show a final success toast here -- wait until processing completes.
+      setProcessing(true);
+      // reset progress for processing stage
+      setProgress(0);
 
       if (onFilesUploaded) {
         onFilesUploaded(uploadedFiles);
       }
 
-      // Mark processing as complete
-      setProcessingComplete(true);
-      // Stop uploading state (processing continues in background)
-      setUploading(false);
+      // Start polling to reflect backend processing progress to the user
+  const startPolling = (surveyIdToPoll: string, uploadedFileIds: string[]) => {
+        // Reset progress for processing phase and mark processing not complete yet
+        setProcessingComplete(false);
+        // Use an internal displayed progress value starting from 0 for processing stage
+        setProgress(0);
 
-      // Hide creation form after successful upload (but not when just generating suggestions)
-      setShowCreationForm(false);
+        // Prevent duplicate timers
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
 
-      // Clear selected files and some form fields but preserve createdSurveyId and processingComplete
-      setSelectedFiles([]);
-      setSurveyTitle('');
-      setCategory('');
-      setDescription('');
-      setNumberParticipants(undefined);
-      setAiSuggestions([]);
-      setSelectedPersonality(personalities.find(p => p.is_default)?.id || '');
+        const intervalMs = 2000; // poll every 2s
+        // Gentle progress animation while waiting for server to report completion
+        pollTimerRef.current = window.setInterval(async () => {
+          try {
+            // Call access-check endpoint which reports per-file processing status (includes isProcessed flag)
+            const resp = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.ACCESS_CHECK(surveyIdToPoll)));
+            if (!resp.ok) {
+              // transient error: gently animate progress
+              setProgress(prev => Math.min(95, prev + Math.floor(Math.random() * 7) + 3));
+              return;
+            }
 
-      if (onUploadComplete) {
-        onUploadComplete();
-      }
+            const data = await resp.json();
+            const accessibleFiles: any[] = data?.accessibleFiles || [];
+
+            // Count how many of the uploaded files are now processed
+            const total = uploadedFileIds.length || 1;
+            let processedCount = 0;
+            for (const fid of uploadedFileIds) {
+              const f = accessibleFiles.find(af => (af.id === fid || af.fileId === fid));
+              if (f && (f.isProcessed === true || (f.processingStatus && f.processingStatus.toString().toLowerCase().includes('completed')))) {
+                processedCount += 1;
+              }
+            }
+
+            // Set progress based on processed ratio (0-100)
+            const pct = Math.floor((processedCount / total) * 100);
+            setProgress(pct);
+
+            if (processedCount >= total) {
+              // Completed: set progress to 100 and stop polling
+              setProgress(100);
+              setProcessingComplete(true);
+              setProcessing(false);
+              setUploading(false);
+
+              // clear timer
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
+
+              // Perform post-processing UI updates (hide form, clear selections)
+              setShowCreationForm(false);
+              setSelectedFiles([]);
+              setSurveyTitle('');
+              setCategory('');
+              setDescription('');
+              setNumberParticipants(undefined);
+              setAiSuggestions([]);
+              setSelectedPersonality(personalities.find(p => p.is_default)?.id || '');
+
+              // Notify consumer that upload+processing is complete
+              if (onUploadComplete) onUploadComplete();
+
+              // Final success toast only after processing finished
+              toast({
+                title: 'Processing Complete',
+                description: 'All files have been processed and the survey is ready.',
+              });
+              return;
+            }
+          } catch (err) {
+            // On error, still animate progress a bit to indicate activity
+            setProgress(prev => Math.min(95, prev + Math.floor(Math.random() * 6) + 2));
+          }
+        }, intervalMs);
+      };
+
+      // Start polling using the created survey id (ensure we have it)
+      const uploadedFileIds = uploadedFiles.map(f => f.id);
+      if (activeSurveyId) {
+        startPolling(activeSurveyId, uploadedFileIds);
+      } else if (createdSurveyId) {
+        startPolling(createdSurveyId, uploadedFileIds);
+      } else {
+        // No id available: mark as complete to avoid indefinite loading
+        setProcessingComplete(true);
+        setUploading(false);
+        setProgress(100);
+  }
       
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -781,61 +863,31 @@ export const MultiFileUpload: React.FC<MultiFileUploadProps> = ({
         </Card>
       )}
 
-      {/* Upload Progress */}
-      {uploading && (
-        <Card className="bg-gray-800/50 border-gray-600">
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              {/* File Upload Progress */}
-              {progress < 100 ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-300">
-                    <span>Uploading files...</span>
-                    <span>{progress.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={progress} className="w-full" />
-                </div>
-              ) : (
-                // Processing Progress
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-300">
-                    <span>
-                      {progress < 100 ? 'Uploading files...' : 
-                       processingComplete ? 'Upload complete!' :
-                       'Processing...'}
-                    </span>
-                  </div>
-                  <Progress 
-                    value={processingComplete ? 100 : progress} 
-                    className="w-full" 
-                  />
-                  {progress >= 100 && !processingComplete && (
-                    <div className="text-xs text-blue-400 mt-2 italic">
-                      💡 Files uploaded successfully. Processing in background.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Simplified full-screen loading overlay while uploading/processing */}
+      {(uploading || processing) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-auto">
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative z-60 flex flex-col items-center gap-4">
+            {/* Rotating cube-like block */}
+            <div className="w-16 h-16 bg-blue-600 transform rotate-12 animate-spin-slow" style={{ perspective: '600px' }} />
+            <div className="text-white font-medium">Uploading and processing files…</div>
+            <div className="text-sm text-gray-300">This may take a few moments. You will be notified when processing finishes.</div>
+          </div>
+        </div>
       )}
 
       {/* Upload Button */}
-      <Button 
-        onClick={uploadFiles} 
+      <Button
+        onClick={uploadFiles}
         disabled={uploading || selectedFiles.length === 0 || (showCreationForm && !surveyTitle.trim())}
         className="w-full bg-blue-600 hover:bg-blue-700 text-white"
         size="lg"
       >
-        {uploading ? (
-          progress < 100 ? (
-            <>Uploading {selectedFiles.length} files...</>
-          ) : processingComplete ? (
-            <>Survey created successfully!</>
-          ) : (
-            <>Processing...</>
-          )
+        {uploading || processing ? (
+          <>
+            <div className="w-4 h-4 mr-2 inline-block bg-white rounded-sm animate-spin" />
+            Uploading…
+          </>
         ) : (
           <>
             <Upload className="w-4 h-4 mr-2" />
