@@ -48,6 +48,8 @@ export const API_CONFIG = {
       },
       MY_FILE_ACCESS: (id: string) => `/surveys/${id}/my-file-access`,
       SEMANTIC_CHAT: '/surveys/semantic-chat',
+  // Retry a previously generated assistant message by message id
+  RETRY_MESSAGE: (messageId: string) => `/surveys/messages/${messageId}/retry`,
     },
     LANGUAGES: {
       SUPPORTED: '/languages/supported',

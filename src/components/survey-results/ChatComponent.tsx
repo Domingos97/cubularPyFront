@@ -7,7 +7,8 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { getSnapshot as getChatStoreSnapshot } from '@/hooks/chatSessionsStore';
 import { useAuth } from "@/hooks/useAuth";
-import { Send, X, BarChart3, MessageCircle } from "lucide-react";
+import { Send, X, BarChart3, MessageCircle, RefreshCw, Copy } from "lucide-react";
+import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from "@/hooks/use-mobile";
 // Panel mode removed - snapshots are always shown inline
 import { InlineDataSnapshot } from "@/components/chat/InlineDataSnapshot";
@@ -125,6 +126,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
   // Debug current user
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // Stable handler for closing the message details panel to avoid passing inline functions
   const handleCloseMessagePanel = React.useCallback(() => setSelectedMessage(null), []);
@@ -312,26 +314,18 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
     return () => window.removeEventListener('sessionCleared', handleSessionCleared as EventListener);
   }, []);
 
-  // Clear selected message when switching to inline mode
-  useEffect(() => {
-    if (showDataInline) {
-      setSelectedMessage(null);
-    }
-  }, [showDataInline]);
-
   const loadSuggestions = async (surveyId: string) => {
     try {
-      // Use GET request to fetch existing suggestions instead of generating new ones
-            const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
+      const response = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.DETAILS(surveyId)), {
         method: 'GET'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch survey data');
       }
-      
+
       const surveyData = await response.json();
-      
+
       // If the survey has pre-generated suggestions, use them
       if (surveyData.ai_suggestions && Array.isArray(surveyData.ai_suggestions) && surveyData.ai_suggestions.length > 0) {
         setSuggestions(surveyData.ai_suggestions);
@@ -834,16 +828,101 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                       
                       {/* Inline footer showing confidence and data availability when present */}
                       {(message.dataSnapshot || message.confidence) && message.sender === 'assistant' && (
-                        <div className="mt-3 pt-3 border-t border-gray-600 flex items-center justify-start gap-3 text-xs text-gray-400">
-                          {message.confidence && (
-                            <span className="flex items-center gap-1">
-                              📊 {t('surveyResults.chat.confidence')}: {Math.round((message.confidence.score || 0) * 100)}%
-                            </span>
-                          )}
-                          {message.dataSnapshot && message.confidence && <span>•</span>}
-                          {message.dataSnapshot && (
-                            <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
-                          )}
+                        <div className="mt-3 pt-3 border-t border-gray-600 flex items-center justify-between gap-3 text-xs text-gray-400">
+                          <div className="flex items-center gap-3">
+                            {message.confidence && (
+                              <span className="flex items-center gap-1">
+                                📊 {t('surveyResults.chat.confidence')}: {Math.round((message.confidence.score || 0) * 100)}%
+                              </span>
+                            )}
+                            {message.dataSnapshot && message.confidence && <span>•</span>}
+                            {message.dataSnapshot && (
+                              <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
+                            )}
+                          </div>
+
+                          {/* Actions: Try again (refresh) and Copy message */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              title={t('surveyResults.chat.tryAgain')}
+                              onClick={async () => {
+                                try {
+                                  // Optimistic UI: set this message to thinking
+                                  const storeMsgs = (getChatStoreSnapshot().currentMessages) || [];
+                                  const optimistic = storeMsgs.map((m: any) => {
+                                    if (m.id === message.id) {
+                                      return { ...m, content: t('surveyResults.chat.aiThinking'), data_snapshot: null, confidence: null };
+                                    }
+                                    return m;
+                                  });
+                                  setCurrentMessages(optimistic as any);
+
+                                  const res = await authenticatedFetch(buildApiUrl(API_CONFIG.ENDPOINTS.SURVEYS.RETRY_MESSAGE(message.id)), {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ sessionId: currentSession?.id })
+                                  });
+
+                                  if (!res.ok) {
+                                    const err = await res.json().catch(() => ({}));
+                                    throw new Error(err.error || 'Retry failed');
+                                  }
+
+                                  const body = await res.json();
+
+                                  // Replace the assistant message with updated content
+                                  const updated = (getChatStoreSnapshot().currentMessages || []).map((m: any) => {
+                                    if (m.id === message.id) {
+                                      return {
+                                        ...m,
+                                        content: body.response || m.content,
+                                        data_snapshot: body.dataSnapshot || null,
+                                        confidence: body.confidence || null
+                                      };
+                                    }
+                                    return m;
+                                  });
+
+                                  setCurrentMessages(updated as any);
+                                  toast({ title: t('surveyResults.chat.retrySent') });
+                                } catch (err) {
+                                  console.error('Retry failed', err);
+                                  toast({ title: t('surveyResults.chat.retryFailed') });
+                                  // Restore latest messages from store snapshot if available
+                                  try {
+                                    const latest = (getChatStoreSnapshot().currentMessages) || [];
+                                    setCurrentMessages(latest as any);
+                                  } catch (e) { /* ignore */ }
+                                }
+                              }}
+                              className="p-1 rounded hover:bg-gray-800/60"
+                            >
+                              <RefreshCw className="h-4 w-4 text-gray-300" />
+                            </button>
+
+                            <button
+                              title={t('surveyResults.chat.copyMessage')}
+                              onClick={async () => {
+                                try {
+                                  let toCopy = message.content || '';
+                                  if (message.dataSnapshot) {
+                                    toCopy += '\n\nData Snapshot:\n' + JSON.stringify(message.dataSnapshot, null, 2);
+                                  }
+                                  if (message.confidence) {
+                                    toCopy += `\n\nConfidence: ${Math.round((message.confidence.score || 0) * 100)}% (${message.confidence.reliability})`;
+                                  }
+                                  await navigator.clipboard.writeText(toCopy);
+                                  toast({ title: t('surveyResults.chat.copied') });
+                                } catch (err) {
+                                  console.error('Failed to copy message', err);
+                                  toast({ title: t('surveyResults.chat.copyFailed') });
+                                }
+                              }}
+                              className="p-1 rounded hover:bg-gray-800/60"
+                            >
+                              <Copy className="h-4 w-4 text-gray-300" />
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
