@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { ThinkingCube } from "@/components/ui/ThinkingCube";
 import { authenticatedFetch } from "@/utils/api";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatSessions } from "@/hooks/useChatSessions";
 import { getSnapshot as getChatStoreSnapshot } from '@/hooks/chatSessionsStore';
 import { useAuth } from "@/hooks/useAuth";
-import { Send, X, BarChart3, Eye, MessageCircle } from "lucide-react";
+import { Send, X, BarChart3, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MessageDetailsPanel } from "@/components/chat/MessageDetailsPanel";
+// Panel mode removed - snapshots are always shown inline
 import { InlineDataSnapshot } from "@/components/chat/InlineDataSnapshot";
 import { Survey } from "@/types/survey";
 import { FileSelectionComponent } from "./FileSelectionComponent";
@@ -53,7 +52,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [pendingNewChat, setPendingNewChat] = useState(false);
-  const [showDataInline, setShowDataInline] = useState<boolean>(false); // false = panel mode, true = inline mode
+  // Always show data inline (no side panel)
+  const [showDataInline, setShowDataInline] = useState<boolean>(true);
 
   // Use ref to track personality updates and prevent loops
   const lastSessionPersonalityRef = useRef<string | null>(null);
@@ -554,24 +554,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
 
   return (
     <div className="h-full flex relative">
-      {/* Message Details Panel - Right Side - Only show in panel mode */}
-      {!showDataInline && (
-        <MessageDetailsPanel
-          isOpen={selectedMessage !== null}
-          onClose={handleCloseMessagePanel}
-          dataSnapshot={selectedMessage?.dataSnapshot}
-          confidence={selectedMessage?.confidence}
-          messageContent={selectedMessage?.content || ''}
-        />
-      )}
-      
-      {/* Panel Overlay for Mobile - Only in panel mode */}
-      {selectedMessage && isMobile && !showDataInline && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30"
-          onClick={() => setSelectedMessage(null)}
-        />
-      )}
+      {/* Message Details panel removed - snapshots are always inline */}
       
       {/* Chat Sidebar - Left Column */}
       <ChatSidebar 
@@ -653,30 +636,7 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
         selectedMessage && !isMobile && !showDataInline ? 'mr-96' : ''
       }`}>
 
-        {/* Visualization Toggle - Only show when there's an active survey */}
-        {selectedSurvey && (
-          <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gray-900/30">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
-              <span className="text-sm font-medium text-gray-300">{t('surveyResults.dataVisualization.title')}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <Eye className="h-3 w-3" />
-                <span>{t('surveyResults.dataVisualization.panel')}</span>
-              </div>
-              <Switch
-                checked={showDataInline}
-                onCheckedChange={setShowDataInline}
-                className="data-[state=checked]:bg-blue-600"
-              />
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <BarChart3 className="h-3 w-3" />
-                <span>{t('surveyResults.dataVisualization.inline')}</span>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Removed Data Visualization toggle - inline snapshots only */}
         
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -843,22 +803,8 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                       className={`p-4 rounded-lg transition-all duration-200 ${
                         message.sender === 'user' 
                           ? 'bg-blue-600 text-white rounded-br-sm shadow-lg' 
-                          : `bg-gray-800 text-gray-100 rounded-bl-sm border border-gray-700 ${
-                              (message.dataSnapshot || message.confidence) && !showDataInline
-                                ? `cursor-pointer hover:bg-gray-700 hover:shadow-lg hover:border-gray-600 ${
-                                    selectedMessage?.id === message.id 
-                                      ? 'border-blue-500 bg-gray-700/80 shadow-blue-500/20 ring-2 ring-blue-500/30' 
-                                      : ''
-                                  }` 
-                                : ''
-                            }`
+                          : 'bg-gray-800 text-gray-100 rounded-bl-sm border border-gray-700'
                       }`}
-                      onClick={() => {
-                        // Only allow panel interaction if in panel mode (not inline mode)
-                        if (message.sender === 'assistant' && (message.dataSnapshot || message.confidence) && !showDataInline) {
-                          setSelectedMessage(selectedMessage?.id === message.id ? null : message);
-                        }
-                      }}
                     >
                       {/* Special handling for thinking/typing indicator */}
                       {message.content.includes(t('surveyResults.chat.aiThinking')) ? (
@@ -886,23 +832,18 @@ export const ChatComponent: React.FC<ChatComponentProps> = ({
                         </div>
                       )}
                       
-                      {/* Panel Mode Footer - Show when panel mode is enabled and has data */}
-                      {!showDataInline && (message.dataSnapshot || message.confidence) && message.sender === 'assistant' && (
-                        <div className="mt-3 pt-3 border-t border-gray-600 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs text-gray-400">
-                            {message.confidence && (
-                              <span className="flex items-center gap-1">
-                                📊 {t('surveyResults.chat.confidence')}: {Math.round((message.confidence.score || 0) * 100)}%
-                              </span>
-                            )}
-                            {message.dataSnapshot && message.confidence && <span>•</span>}
-                            {message.dataSnapshot && (
-                              <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
-                            )}
-                          </div>
-                          <span className="text-xs text-blue-400 font-medium">
-                            {selectedMessage?.id === message.id ? t('surveyResults.chat.panelOpen') : t('surveyResults.chat.clickToViewDetails')}
-                          </span>
+                      {/* Inline footer showing confidence and data availability when present */}
+                      {(message.dataSnapshot || message.confidence) && message.sender === 'assistant' && (
+                        <div className="mt-3 pt-3 border-t border-gray-600 flex items-center justify-start gap-3 text-xs text-gray-400">
+                          {message.confidence && (
+                            <span className="flex items-center gap-1">
+                              📊 {t('surveyResults.chat.confidence')}: {Math.round((message.confidence.score || 0) * 100)}%
+                            </span>
+                          )}
+                          {message.dataSnapshot && message.confidence && <span>•</span>}
+                          {message.dataSnapshot && (
+                            <span>📈 {t('surveyResults.chat.dataAvailable')}</span>
+                          )}
                         </div>
                       )}
                     </div>
