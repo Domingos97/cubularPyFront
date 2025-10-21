@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/resources/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { fetchEnabledLanguages, updateUserLanguagePreference, updateUserProfile, authenticatedFetch } from '@/utils/api';
-import { buildApiUrl } from '@/config';
+import { buildApiUrl, buildUrl } from '@/config';
 import type { SupportedLanguage } from '@/types/language';
 import { UserIcon, Camera, Languages } from 'lucide-react';
 
@@ -262,7 +262,14 @@ export const ProfileTab = ({ className }: ProfileTabProps) => {
           <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
             <div className="relative group">
               <Avatar className="h-20 w-20 mb-4 md:mb-0">
-                <AvatarImage src={user?.avatar || '/placeholder.svg'} alt="Profile" />
+                <AvatarImage
+                  src={
+                    user?.avatar
+                      ? (user.avatar.startsWith('http') ? user.avatar : buildUrl(user.avatar))
+                      : '/placeholder.svg'
+                  }
+                  alt="Profile"
+                />
                 <AvatarFallback className="bg-blue-600 text-white text-lg">
                   {name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 
                    email ? email[0].toUpperCase() : 'U'}

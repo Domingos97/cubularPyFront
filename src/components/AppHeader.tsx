@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import UserNotificationsBell from "@/components/notifications/UserNotificationsBell";
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from "@/hooks/useAuth";
+import { buildUrl } from '@/config';
 interface AppHeaderProps {
   searchTerm?: string;
   currentTab?: "stats" | "responses" | "chat";
@@ -78,7 +79,7 @@ const AppHeader = ({
                 {user && (
                   <Avatar>
                     {/* if user has an avatar url, use AvatarImage with src when available */}
-                    <AvatarImage src={user?.avatar || '/placeholder.svg'} alt={user?.username || 'User'} />
+                    <AvatarImage src={user?.avatar ? (user.avatar.startsWith('http') ? user.avatar : buildUrl(user.avatar)) : '/placeholder.svg'} alt={user?.username || 'User'} />
                     <AvatarFallback>{user?.username ? user.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
                   </Avatar>
                 )}

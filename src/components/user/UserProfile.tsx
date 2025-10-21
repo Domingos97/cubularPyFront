@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { buildUrl } from '@/config';
 import { Separator } from '@/components/ui/separator';
 import { useTranslation } from '@/resources/i18n';
 import { usePersonalities } from '@/hooks/usePersonalities';
@@ -33,6 +34,7 @@ interface UserData {
   language_preference?: string;  // Changed from language to match backend
   preferred_personality?: string;
   has_ai_personalities_access?: boolean;
+  avatar?: string;
   role?: string;  // Add role field
   created_at?: string;
   updated_at?: string;
@@ -88,7 +90,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
         <CardContent className="space-y-6">
           <div className="flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4">
-              <AvatarImage src="/placeholder.svg" alt={user.username} />
+              <AvatarImage src={user?.avatar ? (user.avatar.startsWith('http') ? user.avatar : buildUrl(user.avatar)) : '/placeholder.svg'} alt={user.username} />
               <AvatarFallback className="bg-blue-600 text-white text-xl">
                 {user.username?.charAt(0).toUpperCase()}
               </AvatarFallback>
